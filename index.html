@@ -1,0 +1,4155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KRATE — The Ultimate Shop</title>
+<meta name="description" content="KRATE — Curated goods across tech, fashion, home & more. No noise. Just great stuff.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Epilogue:ital,wght@0,200;0,300;0,400;0,700;0,900;1,200;1,900&display=swap" rel="stylesheet">
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import {
+    getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+    signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import {
+    getFirestore, collection, addDoc, getDocs,
+    doc, setDoc, getDoc, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCy7qAC1g-qRaIoLk70Z_FHqwqyekwfa5s",
+    authDomain: "karate-41207.firebaseapp.com",
+    databaseURL: "https://karate-41207-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "karate-41207",
+    storageBucket: "karate-41207.firebasestorage.app",
+    messagingSenderId: "271846330284",
+    appId: "1:271846330284:web:38d36bfe353b976c217409",
+    measurementId: "G-ZFE44WQR1F"
+  };
+
+  const app  = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db   = getFirestore(app);
+  const provider = new GoogleAuthProvider();
+
+  window._fb = {
+    auth, db, provider,
+    signInWithPopup, createUserWithEmailAndPassword,
+    signInWithEmailAndPassword, signOut, onAuthStateChanged,
+    collection, addDoc, getDocs, doc, setDoc, getDoc, serverTimestamp
+  };
+
+  /* Live auth state → update nav button */
+  onAuthStateChanged(auth, user => {
+    const btn = document.getElementById('navAuthBtn');
+    const lbl = document.getElementById('navAuthLabel');
+    if (!btn || !lbl) return;
+    if (user) {
+      const ini = (user.displayName || user.email || 'U').slice(0,2).toUpperCase();
+      lbl.textContent = ini;
+      btn.title = user.displayName || user.email || '';
+      btn.classList.add('fb-loggedin');
+    } else {
+      lbl.textContent = 'Login';
+      btn.classList.remove('fb-loggedin');
+    }
+  });
+</script>
+
+<!-- GSAP + ScrollTrigger + Lenis CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+<style>
+/* ═══════════════════════════════════════════════════
+   CSS VARIABLES & RESET
+═══════════════════════════════════════════════════ */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --black: #060606;
+  --white: #f0ebe0;
+  --red: #e8381c;
+  --red2: #ff4d2e;
+  --dim: #0d0d0d;
+  --card: #111;
+  --muted: #4a4a4a;
+  --border: rgba(240,235,224,.07);
+  --border-m: rgba(240,235,224,.14);
+  --glow: rgba(232,56,28,.15);
+}
+
+html { cursor: none; }
+body {
+  font-family: 'Epilogue', sans-serif;
+  background: var(--black);
+  color: var(--white);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ═══════════════════════════════════════════════════
+   CUSTOM CURSOR
+═══════════════════════════════════════════════════ */
+#cur, #cur2 {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  transform: translate(-50%, -50%);
+  will-change: left, top;
+}
+#cur {
+  width: 8px; height: 8px;
+  background: var(--red);
+  transition: transform 0.15s ease, opacity 0.2s;
+}
+#cur2 {
+  width: 36px; height: 36px;
+  border: 1.5px solid rgba(232,56,28,.4);
+  transition: width .35s cubic-bezier(.22,1,.36,1),
+              height .35s cubic-bezier(.22,1,.36,1),
+              border-color .35s, background .35s;
+}
+body.hov #cur { transform: translate(-50%,-50%) scale(0); }
+body.hov #cur2 {
+  width: 56px; height: 56px;
+  border-color: var(--red);
+  background: rgba(232,56,28,.08);
+}
+body.drag #cur2 {
+  width: 80px; height: 80px;
+  border-color: rgba(232,56,28,.6);
+  background: rgba(232,56,28,.05);
+}
+
+/* ═══════════════════════════════════════════════════
+   PROGRESS BAR
+═══════════════════════════════════════════════════ */
+#prog {
+  position: fixed; top: 0; left: 0;
+  height: 2px; background: var(--red);
+  z-index: 5000; width: 0;
+  pointer-events: none;
+  transform-origin: left;
+  box-shadow: 0 0 12px var(--red);
+}
+
+/* ═══════════════════════════════════════════════════
+   LOADER — CINEMATIC REVEAL
+═══════════════════════════════════════════════════ */
+#ldr {
+  position: fixed; inset: 0; z-index: 8000;
+  background: var(--black);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 24px;
+  overflow: hidden;
+}
+#ldr-panels {
+  position: absolute; inset: 0;
+  display: flex; pointer-events: none;
+}
+.ldr-panel {
+  flex: 1; background: var(--black);
+  transform-origin: top;
+  will-change: transform;
+}
+.ld-logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(4rem,10vw,7rem);
+  letter-spacing: .18em; color: var(--white);
+  position: relative; z-index: 2;
+  opacity: 0;
+}
+.ld-logo b { color: var(--red); }
+.ld-bar {
+  width: 200px; height: 1px;
+  background: rgba(255,255,255,.1);
+  position: relative; z-index: 2; overflow: hidden;
+}
+.ld-fill {
+  height: 100%; background: var(--red);
+  width: 0; will-change: width;
+  box-shadow: 0 0 8px var(--red);
+}
+.ld-pct {
+  font-size: .6rem; letter-spacing: .26em;
+  color: var(--muted); position: relative; z-index: 2;
+  font-weight: 700;
+}
+.ld-tagline {
+  font-size: .55rem; letter-spacing: .2em;
+  text-transform: uppercase;
+  color: rgba(240,235,224,.2);
+  position: relative; z-index: 2;
+  margin-top: -8px;
+}
+
+/* ═══════════════════════════════════════════════════
+   NAV
+═══════════════════════════════════════════════════ */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 64px;
+  background: rgba(6,6,6,.75);
+  backdrop-filter: blur(32px);
+  border-bottom: 1px solid var(--border);
+  transform: translateY(-100%);
+  will-change: transform;
+}
+.logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.9rem; letter-spacing: .14em;
+  color: var(--white); text-decoration: none;
+}
+.logo b { color: var(--red); }
+.navl { display: flex; gap: 36px; list-style: none; }
+.navl a {
+  font-size: .67rem; font-weight: 700;
+  letter-spacing: .18em; text-transform: uppercase;
+  color: rgba(240,235,224,.3); text-decoration: none;
+  transition: color .2s; position: relative; padding-bottom: 4px;
+}
+.navl a::after {
+  content: ''; position: absolute;
+  bottom: 0; left: 0; right: 0; height: 1px;
+  background: var(--red);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform .35s cubic-bezier(.22,1,.36,1);
+}
+.navl a:hover { color: var(--white); }
+.navl a:hover::after { transform: scaleX(1); }
+.nav-r { display: flex; align-items: center; gap: 14px; }
+.nav-page-btn {
+  font-size: .63rem; font-weight: 700; letter-spacing: .16em;
+  text-transform: uppercase; color: rgba(240,235,224,.35);
+  background: none; border: 1px solid var(--border);
+  padding: 9px 18px; border-radius: 2px; cursor: none;
+  transition: all .25s;
+}
+.nav-page-btn:hover, .nav-page-btn.on {
+  background: rgba(240,235,224,.06);
+  color: var(--white); border-color: rgba(240,235,224,.2);
+}
+.nav-cart {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--red); color: #fff; border: none; cursor: none;
+  padding: 10px 22px; border-radius: 2px;
+  font-family: 'Epilogue', sans-serif;
+  font-size: .67rem; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase;
+  transition: background .2s, box-shadow .2s, transform .2s;
+  position: relative; overflow: hidden;
+}
+.nav-cart::before {
+  content: ''; position: absolute; inset: 0;
+  background: rgba(255,255,255,.12);
+  transform: translateX(-110%) skewX(-20deg);
+  transition: transform .4s ease;
+}
+.nav-cart:hover::before { transform: translateX(110%) skewX(-20deg); }
+.nav-cart:hover { background: #c7300f; transform: scale(1.04); }
+.cbadge {
+  background: #fff; color: var(--red);
+  border-radius: 50%; width: 20px; height: 20px;
+  font-size: .66rem; display: flex; align-items: center;
+  justify-content: center; font-weight: 900;
+}
+
+/* ═══════════════════════════════════════════════════
+   PAGE SYSTEM
+═══════════════════════════════════════════════════ */
+.page { display: none; min-height: 100vh; }
+.page.active { display: block; }
+
+/* ═══════════════════════════════════════════════════
+   SCENE 1 — HERO (400vh pinned)
+═══════════════════════════════════════════════════ */
+.sc1 { height: 400vh; position: relative; }
+.sc1-pin {
+  position: sticky; top: 0; height: 100vh;
+  overflow: hidden; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: var(--black);
+}
+
+/* Noise grain */
+.sc1-pin::before {
+  content: ''; position: absolute; inset: 0; z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  opacity: .03; pointer-events: none;
+}
+
+/* Big K backdrop */
+.hero-bg-k {
+  position: absolute; font-family: 'Bebas Neue', sans-serif;
+  font-size: 55vw; color: rgba(232,56,28,.04); line-height: 1;
+  top: 50%; left: 50%; transform: translate(-50%,-48%);
+  pointer-events: none; will-change: transform; z-index: 0;
+  user-select: none;
+}
+
+/* Glow orb */
+.hero-glow {
+  position: absolute; border-radius: 50%;
+  background: radial-gradient(circle, rgba(232,56,28,.18) 0%, transparent 70%);
+  width: 600px; height: 600px;
+  top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  pointer-events: none; z-index: 0;
+  animation: glowPulse 4s ease-in-out infinite;
+}
+@keyframes glowPulse {
+  0%,100% { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  50% { opacity: .6; transform: translate(-50%,-50%) scale(1.15); }
+}
+
+/* Grid lines */
+.hero-line-h {
+  position: absolute; left: 0; right: 0; height: 1px;
+  background: var(--border); pointer-events: none;
+}
+.hero-line-h.t { top: 35%; }
+.hero-line-h.b { bottom: 30%; }
+.hero-line-v {
+  position: absolute; top: 0; bottom: 0; width: 1px;
+  background: var(--border); pointer-events: none;
+}
+.hero-line-v.l { left: 15%; }
+.hero-line-v.r { right: 15%; }
+
+/* Corner markers */
+.hero-corner {
+  position: absolute; width: 20px; height: 20px;
+  z-index: 1; pointer-events: none;
+}
+.hero-corner::before, .hero-corner::after {
+  content: ''; position: absolute; background: var(--red);
+  opacity: .4;
+}
+.hero-corner::before { width: 100%; height: 1px; top: 0; left: 0; }
+.hero-corner::after { width: 1px; height: 100%; top: 0; left: 0; }
+.hero-corner.tl { top: 18%; left: 15%; }
+.hero-corner.tr { top: 18%; right: 15%; transform: scaleX(-1); }
+.hero-corner.bl { bottom: 25%; left: 15%; transform: scaleY(-1); }
+.hero-corner.br { bottom: 25%; right: 15%; transform: scale(-1); }
+
+/* Hero content */
+.hero-content {
+  position: relative; z-index: 2; text-align: center;
+}
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 12px;
+  font-size: .6rem; font-weight: 700; letter-spacing: .26em;
+  text-transform: uppercase; color: var(--red);
+  margin-bottom: 24px;
+  opacity: 0; transform: translateY(20px);
+  transition: opacity .7s ease, transform .7s ease;
+}
+.hero-eyebrow::before, .hero-eyebrow::after {
+  content: ''; flex: 1; width: 28px; height: 1px;
+  background: var(--red); display: block;
+}
+.hero-h1 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(5rem, 15vw, 200px);
+  line-height: .86; letter-spacing: .03em;
+}
+.hline { display: block; overflow: hidden; }
+.hw {
+  display: inline-block;
+  transform: translateY(112%);
+  will-change: transform;
+}
+.hw.r { color: var(--red); }
+.hw.f { color: rgba(240,235,224,.18); font-style: italic; }
+.hero-desc {
+  margin-top: 28px; font-size: 1rem; line-height: 1.8;
+  color: rgba(240,235,224,.38); max-width: 420px;
+  margin-inline: auto; font-weight: 200;
+  opacity: 0; transform: translateY(16px);
+  transition: opacity .7s .1s ease, transform .7s .1s ease;
+}
+.hero-cta {
+  margin-top: 32px; display: flex; gap: 18px;
+  justify-content: center;
+  opacity: 0; transform: translateY(12px);
+  transition: opacity .7s .2s ease, transform .7s .2s ease;
+}
+
+/* Buttons */
+.btn-main {
+  background: var(--white); color: var(--black); border: none;
+  cursor: none; padding: 15px 38px; border-radius: 2px;
+  font-family: 'Epilogue', sans-serif;
+  font-size: .76rem; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; text-decoration: none;
+  display: inline-block;
+  position: relative; overflow: hidden;
+  transition: color .3s, transform .25s;
+}
+.btn-main::before {
+  content: ''; position: absolute; inset: 0;
+  background: var(--red);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform .35s cubic-bezier(.22,1,.36,1);
+}
+.btn-main span { position: relative; z-index: 1; }
+.btn-main:hover::before { transform: scaleX(1); }
+.btn-main:hover { color: #fff; transform: translateY(-3px); }
+
+.btn-outline {
+  background: transparent; color: rgba(240,235,224,.5);
+  border: 1px solid rgba(240,235,224,.15); cursor: none;
+  padding: 14px 28px; border-radius: 2px;
+  font-family: 'Epilogue', sans-serif;
+  font-size: .72rem; font-weight: 500; letter-spacing: .12em;
+  text-transform: uppercase; text-decoration: none;
+  display: inline-block; transition: all .25s;
+}
+.btn-outline:hover { color: var(--white); border-color: rgba(240,235,224,.4); }
+
+/* Scroll indicator */
+.scroll-ind {
+  position: absolute; bottom: 32px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center;
+  gap: 8px; z-index: 3;
+  opacity: 0; transition: opacity .6s;
+}
+.scroll-ind.on { opacity: 1; }
+.si-txt {
+  font-size: .53rem; letter-spacing: .24em;
+  text-transform: uppercase; color: var(--muted);
+}
+.si-track {
+  width: 1px; height: 48px;
+  background: linear-gradient(to bottom, var(--red), transparent);
+  animation: siPulse 1.8s ease-in-out infinite;
+}
+@keyframes siPulse {
+  0%,100% { opacity: 1; transform: scaleY(1); }
+  50% { opacity: .2; transform: scaleY(.3); }
+}
+
+/* Floating particles */
+.hero-particle {
+  position: absolute; border-radius: 50%;
+  pointer-events: none; z-index: 1;
+  animation: floatParticle linear infinite;
+}
+@keyframes floatParticle {
+  0% { transform: translateY(100vh) scale(0); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: .4; }
+  100% { transform: translateY(-20vh) scale(1); opacity: 0; }
+}
+
+/* ═══════════════════════════════════════════════════
+   SCENE 2 — FEATURED SLIDING CARDS (500vh pinned)
+═══════════════════════════════════════════════════ */
+.sc2 { height: 500vh; position: relative; }
+.sc2-pin {
+  position: sticky; top: 0; height: 100vh;
+  overflow: hidden; background: var(--dim);
+}
+.sc2-inner {
+  position: absolute; inset: 0; display: flex;
+}
+
+/* Left panel */
+.sc2-left {
+  width: 42%; display: flex; flex-direction: column;
+  justify-content: center; padding: 80px 64px;
+  border-right: 1px solid var(--border);
+  position: relative; overflow: hidden; flex-shrink: 0;
+}
+.sc2-lbl {
+  font-size: .6rem; font-weight: 700; letter-spacing: .22em;
+  text-transform: uppercase; color: var(--red);
+  display: flex; align-items: center; gap: 12px; margin-bottom: 18px;
+}
+.sc2-lbl::before { content: ''; width: 22px; height: 1px; background: var(--red); }
+
+.sc2-slide-text {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  justify-content: flex-end; padding: 80px 64px;
+  opacity: 0; transform: translateY(30px);
+  transition: opacity .6s ease, transform .6s ease;
+  pointer-events: none;
+}
+.sc2-slide-text.on {
+  opacity: 1; transform: translateY(0); pointer-events: auto;
+}
+.sc2-num {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 7rem; color: rgba(240,235,224,.04); line-height: 1;
+  position: absolute; top: 60px; right: 40px;
+}
+.sc2-sh {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(3rem, 5vw, 5.5rem);
+  line-height: .9; letter-spacing: .04em; margin-bottom: 14px;
+}
+.sc2-sp {
+  font-size: .88rem; line-height: 1.8;
+  color: rgba(240,235,224,.45); font-weight: 200; max-width: 300px;
+}
+.sc2-sprice {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2rem; letter-spacing: .06em;
+  color: var(--red); margin-top: 14px;
+}
+.sc2-sprice s {
+  font-size: 1.2rem; color: var(--muted);
+  font-family: 'Epilogue', sans-serif;
+  font-weight: 200; margin-left: 8px;
+}
+.sc2-sadd {
+  margin-top: 18px; background: var(--red); color: #fff;
+  border: none; cursor: none; padding: 13px 32px; border-radius: 2px;
+  font-family: 'Epilogue', sans-serif;
+  font-size: .72rem; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; transition: background .2s, transform .2s;
+  position: relative; overflow: hidden;
+}
+.sc2-sadd::before {
+  content: ''; position: absolute; inset: 0;
+  background: rgba(255,255,255,.15);
+  transform: translateX(-110%) skewX(-20deg);
+  transition: transform .4s;
+}
+.sc2-sadd:hover::before { transform: translateX(110%) skewX(-20deg); }
+.sc2-sadd:hover { background: #c7300f; }
+
+/* Right card track */
+.sc2-right { flex: 1; position: relative; overflow: hidden; }
+.sc2-cards-wrap {
+  position: absolute; inset: 0;
+  display: flex; align-items: center;
+}
+.sc2-cards {
+  display: flex; gap: 24px; padding: 0 64px;
+  will-change: transform;
+}
+.sc2-card {
+  flex-shrink: 0; width: 280px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 4px; overflow: hidden; cursor: none;
+  transition: transform .5s cubic-bezier(.22,1,.36,1),
+              border-color .35s, box-shadow .35s;
+  position: relative;
+}
+.sc2-card.active {
+  border-color: var(--red);
+  transform: scale(1.03) translateY(-6px);
+  box-shadow: 0 20px 60px rgba(232,56,28,.15);
+}
+.sc2-card:hover .sc2-card-img-in { transform: scale(1.08); }
+.sc2-card-img { height: 240px; overflow: hidden; position: relative; }
+.sc2-card-img-in {
+  width: 100%; height: 100%;
+  display: block; object-fit: cover;
+  transition: transform .6s cubic-bezier(.22,1,.36,1);
+}
+.sc2-card-bdg {
+  position: absolute; top: 12px; left: 12px;
+  background: var(--red); color: #fff;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: .82rem; letter-spacing: .1em;
+  padding: 3px 10px; border-radius: 2px;
+}
+.sc2-card-bdg.nw {
+  background: rgba(240,235,224,.12);
+  backdrop-filter: blur(8px); color: var(--white);
+}
+.sc2-card-info { padding: 16px 18px 20px; }
+.sc2-card-cat {
+  font-size: .58rem; color: var(--muted);
+  letter-spacing: .14em; text-transform: uppercase;
+  font-weight: 700; margin-bottom: 4px;
+}
+.sc2-card-nm {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.2rem; letter-spacing: .06em; margin-bottom: 8px;
+}
+.sc2-card-bot {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.sc2-card-prc {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.3rem; letter-spacing: .04em; color: var(--red);
+}
+.sc2-card-old {
+  font-size: .72rem; color: var(--muted);
+  text-decoration: line-through; margin-left: 6px;
+  font-family: 'Epilogue', sans-serif; font-weight: 200;
+}
+.sc2-card-rat { font-size: .68rem; color: var(--muted); }
+.sc2-card-rat span { color: #e8a500; }
+
+/* Progress dots */
+.sc2-dots {
+  position: absolute; bottom: 32px; right: 64px;
+  display: flex; gap: 8px; z-index: 10;
+}
+.sc2-dot {
+  width: 24px; height: 3px; background: rgba(240,235,224,.12);
+  border-radius: 2px; transition: all .4s cubic-bezier(.22,1,.36,1);
+}
+.sc2-dot.on { background: var(--red); width: 48px; }
+
+/* Drag hint */
+.sc2-drag-hint {
+  position: absolute; bottom: 32px; left: 64px;
+  font-size: .55rem; letter-spacing: .18em;
+  text-transform: uppercase; color: rgba(240,235,224,.2);
+  display: flex; align-items: center; gap: 8px;
+}
+.sc2-drag-hint::before {
+  content: ''; width: 20px; height: 1px;
+  background: rgba(240,235,224,.2); display: block;
+}
+
+/* ═══════════════════════════════════════════════════
+   SCENE 3 — STATS (350vh pinned)
+═══════════════════════════════════════════════════ */
+.sc3 { height: 350vh; position: relative; }
+.sc3-pin {
+  position: sticky; top: 0; height: 100vh;
+  overflow: hidden; background: var(--black);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+.sc3-label {
+  font-size: .62rem; font-weight: 700; letter-spacing: .22em;
+  text-transform: uppercase; color: var(--red);
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 40px; opacity: 0;
+  transition: opacity .6s .2s;
+}
+.sc3-label::before, .sc3-label::after {
+  content: ''; width: 24px; height: 1px; background: var(--red);
+}
+.sc3-stats {
+  display: grid; grid-template-columns: repeat(3,1fr);
+  width: 100%; border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.sc3-stat {
+  padding: 60px 48px; text-align: center;
+  border-right: 1px solid var(--border);
+  position: relative; overflow: hidden;
+  will-change: transform, opacity;
+}
+.sc3-stat:last-child { border-right: none; }
+/* Glow on enter */
+.sc3-stat::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(circle at center, rgba(232,56,28,.06) 0%, transparent 70%);
+  opacity: 0; transition: opacity .8s ease;
+}
+.sc3-stat.on::before { opacity: 1; }
+.sc3-stat-n {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(4rem, 8vw, 8rem);
+  line-height: 1; letter-spacing: .04em; color: var(--white);
+  will-change: transform;
+}
+.sc3-stat-n b { color: var(--red); }
+.sc3-stat-l {
+  font-size: .7rem; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--muted);
+  margin-top: 10px; font-weight: 400;
+}
+.sc3-stat::after {
+  content: ''; position: absolute; bottom: 0;
+  left: 0; right: 0; height: 2px; background: var(--red);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform .9s cubic-bezier(.22,1,.36,1);
+}
+.sc3-stat.on::after { transform: scaleX(1); }
+
+/* ═══════════════════════════════════════════════════
+   MARQUEE STRIP
+═══════════════════════════════════════════════════ */
+.marquee-strip {
+  overflow: hidden; padding: 16px 0;
+  background: var(--red); position: relative; z-index: 2;
+}
+.mtrack {
+  display: flex;
+  animation: mScroll 22s linear infinite; white-space: nowrap;
+}
+.mi {
+  padding: 0 40px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1rem; letter-spacing: .14em;
+  color: rgba(255,255,255,.65);
+}
+.mi.w { color: #fff; }
+@keyframes mScroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* ═══════════════════════════════════════════════════
+   SCENE 4 — STORYTELLING (600vh pinned)
+═══════════════════════════════════════════════════ */
+.sc4 { height: 600vh; position: relative; }
+.sc4-pin {
+  position: sticky; top: 0; height: 100vh;
+  overflow: hidden; display: grid; grid-template-columns: 50% 50%;
+}
+.sc4-left {
+  position: relative; border-right: 1px solid var(--border);
+  background: var(--black); overflow: hidden;
+}
+.sc4-step {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  justify-content: flex-end; padding: 80px 64px;
+  opacity: 0; transform: translateY(32px);
+  transition: opacity .65s ease, transform .65s ease;
+}
+.sc4-step.on { opacity: 1; transform: translateY(0); }
+.sc4-stepn {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 9rem; color: rgba(240,235,224,.03); line-height: 1;
+  position: absolute; top: 40px; right: 40px;
+}
+.sc4-lbl {
+  font-size: .6rem; font-weight: 700; letter-spacing: .22em;
+  text-transform: uppercase; color: var(--red);
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+}
+.sc4-lbl::before { content: ''; width: 20px; height: 1px; background: var(--red); }
+.sc4-h {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(3rem, 5vw, 5rem);
+  line-height: .9; letter-spacing: .04em; margin-bottom: 16px;
+}
+.sc4-p {
+  font-size: .88rem; line-height: 1.82;
+  color: rgba(240,235,224,.45); font-weight: 200; max-width: 380px;
+}
+.sc4-nav {
+  position: absolute; right: 20px; top: 50%;
+  transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 10px; z-index: 10;
+}
+.sc4-nd {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(240,235,224,.18);
+  transition: all .35s cubic-bezier(.22,1,.36,1); cursor: none;
+}
+.sc4-nd.on { background: var(--red); height: 18px; border-radius: 3px; }
+
+.sc4-right { position: relative; overflow: hidden; background: var(--dim); }
+.sc4-vis {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity .65s ease;
+  font-size: 13rem;
+}
+.sc4-vis.on { opacity: 1; }
+.sc4-visbg {
+  position: absolute; inset: 0;
+  opacity: 0; transition: opacity .65s ease;
+}
+.sc4-visbg.on { opacity: 1; }
+
+/* Floating icon treatment */
+.sc4-icon-wrap {
+  position: relative; z-index: 2;
+  animation: iconFloat 3s ease-in-out infinite;
+}
+@keyframes iconFloat {
+  0%,100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-18px) rotate(2deg); }
+}
+.sc4-icon-ring {
+  position: absolute; border: 1px solid rgba(232,56,28,.2);
+  border-radius: 50%; top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  animation: ringExpand 2.5s ease-in-out infinite;
+}
+.sc4-icon-ring:nth-child(1) { width: 200px; height: 200px; animation-delay: 0s; }
+.sc4-icon-ring:nth-child(2) { width: 280px; height: 280px; animation-delay: .4s; }
+.sc4-icon-ring:nth-child(3) { width: 360px; height: 360px; animation-delay: .8s; }
+@keyframes ringExpand {
+  0%,100% { opacity: .5; transform: translate(-50%,-50%) scale(1); }
+  50% { opacity: .1; transform: translate(-50%,-50%) scale(1.08); }
+}
+
+/* ═══════════════════════════════════════════════════
+   SCENE 5 — DEAL BANNER (300vh pinned)
+═══════════════════════════════════════════════════ */
+.sc5 { height: 300vh; position: relative; }
+.sc5-pin {
+  position: sticky; top: 0; height: 100vh;
+  overflow: hidden; background: var(--black);
+  display: flex; align-items: center;
+  justify-content: center; padding: 64px;
+}
+.deal-box {
+  width: 100%; background: var(--red); border-radius: 2px;
+  padding: 80px 72px;
+  display: grid; grid-template-columns: 1fr auto;
+  align-items: center; gap: 48px;
+  position: relative; overflow: hidden;
+  transform: scale(.82) translateY(60px); opacity: 0;
+  transition: transform 1.1s cubic-bezier(.22,1,.36,1), opacity .8s ease;
+}
+.deal-box.on { transform: scale(1) translateY(0); opacity: 1; }
+.deal-bg-txt {
+  position: absolute; right: -50px; top: 50%;
+  transform: translateY(-50%);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 280px; color: rgba(255,255,255,.07);
+  line-height: 1; pointer-events: none; white-space: nowrap;
+}
+.deal-h {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(2.5rem, 5vw, 5.5rem);
+  line-height: .88; letter-spacing: .04em; color: #fff;
+}
+.deal-p {
+  color: rgba(255,255,255,.55); margin-top: 14px;
+  font-size: .9rem; font-weight: 200; line-height: 1.65;
+}
+.deal-countdown { display: flex; gap: 20px; margin-top: 24px; }
+.dc { text-align: center; }
+.dc-n {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2.5rem; letter-spacing: .06em; color: #fff; line-height: 1;
+}
+.dc-l {
+  font-size: .58rem; letter-spacing: .16em; text-transform: uppercase;
+  color: rgba(255,255,255,.5); margin-top: 3px;
+}
+.btn-white {
+  background: #fff; color: var(--red); border: none; cursor: none;
+  padding: 18px 44px; border-radius: 2px;
+  font-family: 'Epilogue', sans-serif;
+  font-size: .8rem; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; white-space: nowrap;
+  transition: transform .2s, box-shadow .2s;
+  position: relative; overflow: hidden;
+}
+.btn-white::before {
+  content: ''; position: absolute; inset: 0;
+  background: var(--red); transform: scaleY(0); transform-origin: bottom;
+  transition: transform .35s cubic-bezier(.22,1,.36,1); z-index: 0;
+}
+.btn-white span { position: relative; z-index: 1; }
+.btn-white:hover::before { transform: scaleY(1); }
+.btn-white:hover { color: #fff; transform: scale(1.04); }
+
+/* ═══════════════════════════════════════════════════
+   TRUST STRIP
+═══════════════════════════════════════════════════ */
+.trust {
+  display: grid; grid-template-columns: repeat(4,1fr);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.trust-i {
+  padding: 32px 28px; border-right: 1px solid var(--border);
+  position: relative; overflow: hidden; transition: background .3s;
+}
+.trust-i:last-child { border-right: none; }
+.trust-i::after {
+  content: ''; position: absolute; bottom: 0;
+  left: 0; right: 0; height: 2px; background: var(--red);
+  transform: scaleX(0); transform-origin: left; transition: transform .45s;
+}
+.trust-i:hover::after { transform: scaleX(1); }
+.trust-i:hover { background: rgba(232,56,28,.04); }
+.ti-ic { font-size: 1.8rem; display: block; margin-bottom: 12px; }
+.ti-t { font-family: 'Bebas Neue', sans-serif; font-size: 1.05rem; letter-spacing: .08em; margin-bottom: 5px; }
+.ti-s { font-size: .75rem; color: var(--muted); line-height: 1.55; font-weight: 200; }
+
+/* ═══════════════════════════════════════════════════
+   REVIEWS
+═══════════════════════════════════════════════════ */
+.rev-sec { padding: 120px 64px; background: var(--dim); }
+.sec-hd { margin-bottom: 56px; }
+.sec-lbl {
+  font-size: .6rem; font-weight: 700; letter-spacing: .22em;
+  text-transform: uppercase; color: var(--red);
+  display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+}
+.sec-lbl::before { content: ''; width: 22px; height: 1px; background: var(--red); }
+.sec-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(3rem, 6vw, 6.5rem);
+  line-height: .9; letter-spacing: .04em;
+}
+.sec-title i {
+  font-style: italic; font-family: 'Epilogue', sans-serif;
+  font-weight: 200; color: var(--red);
+}
+.rev-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 2px; }
+.rev-c {
+  background: rgba(255,255,255,.04); padding: 36px;
+  position: relative; overflow: hidden;
+  transition: background .3s, transform .4s cubic-bezier(.22,1,.36,1);
+  opacity: 0; transform: translateY(40px);
+  will-change: transform, opacity;
+}
+.rev-c.on {
+  opacity: 1; transform: translateY(0);
+  transition: opacity .8s ease, transform .8s ease, background .3s;
+}
+.rev-c:hover { background: rgba(255,255,255,.07); transform: translateY(-4px) !important; }
+.rev-c::before {
+  content: '"'; position: absolute; top: -14px; right: 20px;
+  font-family: 'Bebas Neue', sans-serif; font-size: 9rem;
+  color: rgba(232,56,28,.07); line-height: 1; pointer-events: none;
+}
+.rev-stars { color: var(--red); letter-spacing: 3px; margin-bottom: 14px; font-size: .9rem; }
+.rev-txt {
+  font-size: .86rem; line-height: 1.82;
+  color: rgba(240,235,224,.5); font-style: italic;
+  font-weight: 200; margin-bottom: 20px;
+}
+.rev-auth { display: flex; align-items: center; gap: 14px; }
+.rev-av {
+  width: 42px; height: 42px; background: var(--red);
+  border-radius: 2px; display: flex; align-items: center;
+  justify-content: center; font-family: 'Bebas Neue', sans-serif;
+  font-size: 1rem; letter-spacing: .05em; color: #fff; flex-shrink: 0;
+}
+.rev-nm { font-weight: 700; font-size: .86rem; letter-spacing: .02em; }
+.rev-mt { font-size: .68rem; color: var(--muted); margin-top: 2px; }
+
+/* ═══════════════════════════════════════════════════
+   HOW IT WORKS
+═══════════════════════════════════════════════════ */
+.how-sec { padding: 120px 64px; background: var(--black); }
+.how-grid {
+  display: grid; grid-template-columns: repeat(4,1fr);
+  border: 1px solid var(--border); margin-top: 48px;
+}
+.how-box {
+  padding: 44px 32px; border-right: 1px solid var(--border);
+  position: relative; overflow: hidden; transition: background .3s;
+  opacity: 0; transform: translateY(36px);
+}
+.how-box.on {
+  opacity: 1; transform: translateY(0);
+  transition: opacity .8s ease, transform .8s ease, background .3s;
+}
+.how-box:last-child { border-right: none; }
+.how-box:hover { background: rgba(232,56,28,.05); }
+.how-n {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 6rem; color: rgba(240,235,224,.04);
+  line-height: 1; position: absolute; top: 10px; right: 14px;
+  transition: color .3s;
+}
+.how-box:hover .how-n { color: rgba(232,56,28,.12); }
+.how-ic { font-size: 2rem; display: block; margin-bottom: 16px; }
+.how-t {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.25rem; letter-spacing: .08em; margin-bottom: 10px;
+}
+.how-d { font-size: .78rem; color: var(--muted); line-height: 1.75; font-weight: 200; }
+.how-bar {
+  height: 1px; background: var(--red);
+  margin-top: 22px; width: 0; transition: width 1.4s ease;
+}
+.how-box.on .how-bar { width: 50%; }
+
+/* ═══════════════════════════════════════════════════
+   BRANDS
+═══════════════════════════════════════════════════ */
+.brands {
+  display: flex; align-items: center;
+  justify-content: center; gap: 56px; flex-wrap: wrap;
+  padding: 60px 64px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.brand {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.5rem; letter-spacing: .12em;
+  color: rgba(240,235,224,.08); transition: color .3s; cursor: default;
+}
+.brand:hover { color: rgba(240,235,224,.4); }
+
+/* ═══════════════════════════════════════════════════
+   NEWSLETTER
+═══════════════════════════════════════════════════ */
+.news { background: var(--dim); padding: 120px 64px; }
+.news-inner {
+  max-width: 600px; margin: 0 auto; text-align: center;
+  opacity: 0; transform: translateY(36px);
+}
+.news-inner.on {
+  opacity: 1; transform: translateY(0);
+  transition: opacity .9s ease, transform .9s ease;
+}
+.news-h {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(3.5rem, 7vw, 7rem);
+  letter-spacing: .04em; line-height: .88; margin-bottom: 18px;
+}
+.news-h b { color: var(--red); }
+.news-p {
+  color: var(--muted); font-size: .88rem; margin-bottom: 34px;
+  line-height: 1.7; font-weight: 200;
+}
+.news-form { display: flex; max-width: 440px; margin: 0 auto; }
+.news-in {
+  flex: 1; padding: 14px 20px;
+  border: 1px solid var(--border); border-right: none;
+  border-radius: 2px 0 0 2px;
+  background: rgba(255,255,255,.04);
+  color: var(--white); font-family: 'Epilogue', sans-serif;
+  font-size: .88rem; outline: none; transition: border-color .2s;
+}
+.news-in::placeholder { color: rgba(240,235,224,.18); }
+.news-in:focus { border-color: rgba(240,235,224,.22); }
+.news-btn {
+  background: var(--red); color: #fff; border: none; cursor: none;
+  padding: 14px 22px; border-radius: 0 2px 2px 0;
+  font-family: 'Epilogue', sans-serif;
+  font-size: .7rem; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; transition: background .2s; white-space: nowrap;
+}
+.news-btn:hover { background: #c7300f; }
+
+/* ═══════════════════════════════════════════════════
+   FOOTER
+═══════════════════════════════════════════════════ */
+footer {
+  padding: 80px 64px 48px;
+  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 56px; border-top: 1px solid var(--border);
+}
+.ft-brand p {
+  font-size: .8rem; color: var(--muted); margin-top: 14px;
+  max-width: 240px; line-height: 1.8; font-weight: 200;
+}
+.ft-soc { display: flex; gap: 10px; margin-top: 20px; }
+.ft-sb {
+  width: 36px; height: 36px; background: none;
+  border: 1px solid var(--border); border-radius: 2px; cursor: none;
+  color: var(--muted); font-size: .88rem;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .2s;
+}
+.ft-sb:hover { background: var(--red); border-color: var(--red); color: #fff; }
+.ft-col h4 {
+  font-family: 'Bebas Neue', sans-serif; font-size: .9rem;
+  letter-spacing: .14em; margin-bottom: 18px;
+  color: rgba(240,235,224,.25);
+}
+.ft-col ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.ft-col ul a {
+  font-size: .78rem; color: var(--muted); text-decoration: none;
+  font-weight: 200; transition: color .2s;
+}
+.ft-col ul a:hover { color: var(--white); }
+.ft-bot {
+  padding: 22px 64px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.ft-bot p { font-size: .68rem; color: rgba(240,235,224,.18); letter-spacing: .06em; }
+
+/* ═══════════════════════════════════════════════════
+   PAGE 2 — ALL PRODUCTS
+═══════════════════════════════════════════════════ */
+.p2-hero {
+  height: 100vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  position: relative; overflow: hidden; background: var(--black);
+}
+.p2-hero-bg {
+  position: absolute;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 40vw; color: rgba(232,56,28,.04); line-height: 1;
+  top: 50%; left: 50%; transform: translate(-50%,-50%);
+  pointer-events: none; white-space: nowrap;
+}
+.p2-eyebrow {
+  font-size: .62rem; font-weight: 700; letter-spacing: .24em;
+  text-transform: uppercase; color: var(--red);
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+}
+.p2-eyebrow::before, .p2-eyebrow::after { content: ''; width: 24px; height: 1px; background: var(--red); }
+.p2-h1 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(4rem, 12vw, 160px);
+  line-height: .88; letter-spacing: .04em; text-align: center;
+}
+.p2-h1 span { color: var(--red); }
+.p2-sub { font-size: .88rem; color: rgba(240,235,224,.38); font-weight: 200; margin-top: 20px; text-align: center; }
+.p2-content { padding: 80px 64px 120px; }
+.p2-filters {
+  display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 56px;
+  position: sticky; top: 68px; z-index: 100;
+  background: rgba(6,6,6,.9); backdrop-filter: blur(20px);
+  padding: 16px 0; border-bottom: 1px solid var(--border);
+}
+.flt-btn {
+  font-size: .62rem; font-weight: 700; letter-spacing: .16em;
+  text-transform: uppercase; background: none;
+  border: 1px solid var(--border); color: rgba(240,235,224,.3);
+  padding: 8px 16px; border-radius: 2px; cursor: none;
+  transition: all .25s;
+}
+.flt-btn:hover, .flt-btn.on {
+  border-color: var(--red); color: var(--white);
+  background: rgba(232,56,28,.08);
+}
+.p2-section-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(2rem, 4vw, 4rem); letter-spacing: .08em;
+  opacity: 0; transform: translateX(-30px);
+  transition: opacity .8s ease, transform .8s ease;
+}
+.p2-section-title.on { opacity: 1; transform: translateX(0); }
+.p2-sec-sub {
+  font-size: .78rem; color: var(--muted); font-weight: 200;
+  margin-top: 6px; opacity: 0; transform: translateX(-20px);
+  transition: opacity .8s .1s ease, transform .8s .1s ease;
+}
+.p2-sec-sub.on { opacity: 1; transform: translateX(0); }
+.p2-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px,1fr));
+  gap: 16px;
+}
+.pg-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 4px; overflow: hidden; position: relative;
+  cursor: none;
+  transition: transform .4s cubic-bezier(.22,1,.36,1),
+              border-color .3s, box-shadow .4s;
+  opacity: 0; transform: translateY(30px);
+}
+.pg-card.on {
+  opacity: 1; transform: translateY(0);
+  transition: opacity .7s ease, transform .7s ease,
+              border-color .3s, box-shadow .4s;
+}
+.pg-card:hover {
+  transform: translateY(-6px) scale(1.01) !important;
+  border-color: rgba(232,56,28,.3);
+  box-shadow: 0 20px 50px rgba(232,56,28,.1);
+}
+.pg-bdg {
+  position: absolute; top: 12px; left: 12px; z-index: 2;
+  background: var(--red); color: #fff;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: .78rem; letter-spacing: .1em; padding: 3px 10px; border-radius: 2px;
+}
+.pg-bdg.nw { background: rgba(240,235,224,.12); backdrop-filter: blur(8px); color: var(--white); }
+.pg-img { height: 220px; overflow: hidden; position: relative; }
+.pg-img-in {
+  height: 100%; display: block;
+  object-fit: cover; width: 100%;
+  transition: transform .5s cubic-bezier(.22,1,.36,1);
+}
+.pg-card:hover .pg-img-in { transform: scale(1.08); }
+.pg-hover {
+  position: absolute; inset: 0; display: flex;
+  align-items: flex-end; justify-content: center;
+  padding-bottom: 16px; background: rgba(6,6,6,.6);
+  opacity: 0; transition: opacity .3s;
+}
+.pg-card:hover .pg-hover { opacity: 1; }
+.pg-hover-btn {
+  font-size: .66rem; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; background: var(--red); color: #fff;
+  border: none; cursor: none; padding: 10px 24px; border-radius: 2px;
+  transition: background .2s;
+}
+.pg-hover-btn:hover { background: #c7300f; }
+.pg-info { padding: 14px 16px 18px; }
+.pg-cat { font-size: .57rem; color: var(--muted); letter-spacing: .14em; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
+.pg-nm { font-family: 'Bebas Neue', sans-serif; font-size: 1.15rem; letter-spacing: .06em; margin-bottom: 6px; }
+.pg-bot { display: flex; align-items: center; justify-content: space-between; }
+.pg-prc { font-family: 'Bebas Neue', sans-serif; font-size: 1.25rem; letter-spacing: .04em; color: var(--red); }
+.pg-old { font-size: .72rem; color: var(--muted); text-decoration: line-through; margin-left: 6px; }
+.pg-rat { font-size: .68rem; color: var(--muted); }
+.pg-rat span { color: #e8a500; }
+
+/* ═══════════════════════════════════════════════════
+   CART DRAWER
+═══════════════════════════════════════════════════ */
+.cart-ov {
+  position: fixed; inset: 0; background: rgba(0,0,0,.7);
+  z-index: 2000; opacity: 0; pointer-events: none;
+  transition: opacity .4s; backdrop-filter: blur(8px);
+}
+.cart-ov.open { opacity: 1; pointer-events: all; }
+.cart-drw {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: 420px; background: var(--dim);
+  border-left: 1px solid var(--border); z-index: 2001;
+  display: flex; flex-direction: column;
+  transform: translateX(100%);
+  transition: transform .5s cubic-bezier(.22,1,.36,1);
+}
+.cart-drw.open { transform: translateX(0); }
+.c-hd {
+  padding: 24px 28px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.c-hd h3 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.3rem; letter-spacing: .1em;
+}
+.c-cls {
+  background: none; border: 1px solid var(--border);
+  color: var(--muted); cursor: none; width: 32px; height: 32px;
+  border-radius: 2px; font-size: .78rem; display: flex;
+  align-items: center; justify-content: center; transition: all .2s;
+}
+.c-cls:hover { border-color: var(--red); color: var(--red); }
+.c-lst { flex: 1; overflow-y: auto; padding: 20px 28px; }
+.c-item {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 16px 0; border-bottom: 1px solid var(--border);
+}
+.c-th {
+  width: 52px; height: 52px; background: rgba(255,255,255,.05);
+  border-radius: 2px; display: flex; align-items: center;
+  justify-content: center; font-size: 1.5rem; flex-shrink: 0;
+}
+.c-info { flex: 1; }
+.c-nm { font-weight: 700; font-size: .86rem; letter-spacing: .02em; margin-bottom: 3px; }
+.c-pr { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: .06em; color: var(--red); }
+.c-qty { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+.qb {
+  width: 26px; height: 26px; background: rgba(255,255,255,.06);
+  border: none; border-radius: 2px; cursor: none;
+  color: var(--white); font-size: .88rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .2s;
+}
+.qb:hover { background: var(--red); }
+.qn { font-size: .84rem; font-weight: 700; min-width: 18px; text-align: center; }
+.crm { background: none; border: none; cursor: none; color: var(--muted); transition: color .2s; }
+.crm:hover { color: var(--red); }
+.c-ft { padding: 22px 28px; border-top: 1px solid var(--border); }
+.c-row { display: flex; justify-content: space-between; font-size: .78rem; color: var(--muted); margin-bottom: 8px; }
+.c-tot {
+  display: flex; justify-content: space-between;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.55rem; letter-spacing: .06em;
+  border-top: 1px solid var(--border);
+  margin-top: 10px; padding-top: 14px; margin-bottom: 18px;
+}
+.btn-co {
+  width: 100%; background: var(--red); color: #fff;
+  border: none; cursor: none; padding: 15px; border-radius: 2px;
+  font-family: 'Epilogue', sans-serif;
+  font-size: .78rem; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; transition: background .2s;
+}
+.btn-co:hover { background: #c7300f; }
+.c-empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+.c-empty .ei { font-size: 3rem; display: block; margin-bottom: 14px; }
+
+/* ═══════════════════════════════════════════════════
+   CHECKOUT MODAL
+═══════════════════════════════════════════════════ */
+.modal-ov {
+  position: fixed; inset: 0; background: rgba(0,0,0,.92);
+  z-index: 4000; opacity: 0; pointer-events: none;
+  transition: opacity .3s;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px; backdrop-filter: blur(14px);
+}
+.modal-ov.open { opacity: 1; pointer-events: all; }
+.modal {
+  background: var(--dim); border: 1px solid var(--border);
+  width: 100%; max-width: 580px; max-height: 92vh;
+  overflow: hidden; display: flex; flex-direction: column;
+  border-radius: 2px;
+  transform: scale(.9) translateY(30px);
+  transition: transform .4s cubic-bezier(.22,1,.36,1);
+}
+.modal-ov.open .modal { transform: scale(1) translateY(0); }
+.co-hd { padding: 26px 36px 0; }
+.co-pg { display: flex; align-items: center; margin-bottom: 26px; }
+.co-s {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 8px;
+  flex: 1; position: relative;
+}
+.co-s:not(:last-child)::after {
+  content: ''; position: absolute; left: 50%; top: 14px;
+  width: 100%; height: 1px; background: var(--border); z-index: 0;
+}
+.co-s.done:not(:last-child)::after { background: var(--red); }
+.co-d {
+  width: 28px; height: 28px; border-radius: 2px;
+  border: 1px solid var(--border); background: transparent;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Bebas Neue', sans-serif; font-size: .8rem;
+  letter-spacing: .05em; color: var(--muted); z-index: 1; transition: all .3s;
+}
+.co-s.active .co-d { border-color: var(--red); background: var(--red); color: #fff; }
+.co-s.done .co-d { border-color: var(--red); background: rgba(232,56,28,.15); color: var(--red); }
+.co-sl { font-size: .58rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.co-s.active .co-sl { color: var(--white); }
+.co-ttl { font-family: 'Bebas Neue', sans-serif; font-size: 1.85rem; letter-spacing: .08em; margin-bottom: 3px; }
+.co-st { font-size: .78rem; color: var(--muted); font-weight: 200; margin-bottom: 18px; }
+.co-bd { padding: 0 36px; overflow-y: auto; flex: 1; }
+.co-ft {
+  padding: 18px 36px 26px; border-top: 1px solid var(--border);
+  display: flex; gap: 12px; background: var(--dim);
+}
+.co-bk {
+  background: none; border: 1px solid var(--border); cursor: none;
+  padding: 12px 20px; border-radius: 2px;
+  font-family: 'Epilogue', sans-serif; font-size: .7rem; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--muted); transition: all .2s;
+}
+.co-bk:hover { border-color: rgba(240,235,224,.3); color: var(--white); }
+.co-nx {
+  flex: 1; background: var(--red); color: #fff; border: none; cursor: none;
+  padding: 13px; border-radius: 2px; font-family: 'Epilogue', sans-serif;
+  font-size: .78rem; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; transition: background .2s;
+}
+.co-nx:hover { background: #c7300f; }
+.frow { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; margin-bottom: 13px; }
+.frow.s { grid-template-columns: 1fr; }
+.fld { display: flex; flex-direction: column; gap: 5px; }
+.fld label { font-size: .58rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: rgba(240,235,224,.28); }
+.fld input, .fld select {
+  padding: 11px 15px; border: 1px solid var(--border);
+  border-radius: 2px; background: rgba(255,255,255,.04);
+  color: var(--white); font-family: 'Epilogue', sans-serif;
+  font-size: .86rem; outline: none; transition: border-color .2s;
+}
+.fld input:focus, .fld select:focus { border-color: rgba(240,235,224,.22); }
+.fld input::placeholder { color: rgba(240,235,224,.16); }
+.fld select option { background: #1a1a1a; }
+.pay-g { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; margin-bottom: 13px; }
+.pay-o {
+  border: 1px solid var(--border); border-radius: 2px;
+  padding: 13px; cursor: none;
+  display: flex; align-items: center; gap: 11px; transition: all .25s;
+}
+.pay-o:hover { border-color: rgba(240,235,224,.18); }
+.pay-o.sel { border-color: var(--red); background: rgba(232,56,28,.06); }
+.pay-ic { font-size: 1.35rem; }
+.pay-lb { font-weight: 700; font-size: .76rem; letter-spacing: .03em; }
+.pay-sb { font-size: .64rem; color: var(--muted); margin-top: 1px; }
+.cx { margin-top: 12px; display: none; }
+.cx.show { display: block; }
+.sec-n {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,255,255,.04); border: 1px solid var(--border);
+  padding: 11px 15px; border-radius: 2px; margin-top: 12px;
+  font-size: .7rem; color: var(--muted); margin-bottom: 6px;
+}
+.osm { background: rgba(255,255,255,.03); border: 1px solid var(--border); border-radius: 2px; padding: 18px; margin-bottom: 13px; }
+.osm-i { display: flex; align-items: center; gap: 11px; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+.osm-e { width: 38px; height: 38px; background: rgba(255,255,255,.06); border-radius: 2px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+.osm-r { display: flex; justify-content: space-between; font-size: .78rem; color: var(--muted); padding: 5px 0; }
+.osm-t { display: flex; justify-content: space-between; font-family: 'Bebas Neue', sans-serif; font-size: 1.25rem; letter-spacing: .06em; border-top: 1px solid var(--border); margin-top: 7px; padding-top: 13px; }
+.co-ok { text-align: center; padding: 44px 36px; }
+.ok-ani { font-size: 4rem; display: block; margin-bottom: 18px; animation: popIn .6s cubic-bezier(.34,1.56,.64,1); }
+@keyframes popIn { from { transform: scale(0) rotate(-15deg); opacity: 0; } to { transform: scale(1) rotate(0); opacity: 1; } }
+.co-ok h3 { font-family: 'Bebas Neue', sans-serif; font-size: 2.8rem; letter-spacing: .08em; margin-bottom: 10px; }
+.co-ok p { color: var(--muted); font-size: .86rem; line-height: 1.72; font-weight: 200; max-width: 360px; margin: 0 auto 22px; }
+.oid { display: inline-block; background: rgba(232,56,28,.1); border: 1px solid rgba(232,56,28,.3); color: var(--red); padding: 10px 24px; border-radius: 2px; font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: .12em; margin-bottom: 22px; }
+
+/* ═══════════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════════ */
+.toast {
+  position: fixed; bottom: 30px; left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--white); color: var(--black);
+  padding: 11px 26px; border-radius: 2px;
+  font-size: .7rem; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; z-index: 9999; white-space: nowrap;
+  box-shadow: 0 10px 40px rgba(0,0,0,.55);
+  transition: transform .38s cubic-bezier(.22,1,.36,1);
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ═══════════════════════════════════════════════════
+   MOUSE PARALLAX LAYER
+═══════════════════════════════════════════════════ */
+.parallax-mouse {
+  position: absolute; pointer-events: none;
+  will-change: transform; transition: transform .8s cubic-bezier(.22,1,.36,1);
+}
+
+/* ═══════════════════════════════════════════════════
+   ANIMATED SECTION REVEAL UTILITY
+═══════════════════════════════════════════════════ */
+.reveal-up {
+  opacity: 0; transform: translateY(40px);
+  transition: opacity .8s ease, transform .8s ease;
+}
+.reveal-up.on { opacity: 1; transform: translateY(0); }
+
+/* ═══════════════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════
+   CINEMATIC RING TUNNEL — CSS
+═══════════════════════════════════════════════════ */
+.ring-scene {
+  height: 900vh; /* long scroll = lots of room for phases */
+  position: relative;
+  background: var(--black);
+}
+.ring-pin {
+  position: sticky;
+  top: 0; height: 100vh;
+  overflow: hidden;
+  background: #060606;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#ringCanvas {
+  position: absolute;
+  inset: 0; width: 100%; height: 100%;
+  z-index: 1;
+}
+
+/* Radial depth vignette */
+.ring-vignette {
+  position: absolute; inset: 0; z-index: 2;
+  background: radial-gradient(ellipse at center,
+    transparent 30%,
+    rgba(6,6,6,.55) 70%,
+    rgba(6,6,6,.95) 100%);
+  pointer-events: none;
+}
+
+/* Phase label */
+.ring-label {
+  position: absolute;
+  bottom: 72px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 14px;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity .5s;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.ring-label.show { opacity: 1; }
+.rl-bar {
+  display: block; width: 28px; height: 1px;
+  background: var(--red); flex-shrink: 0;
+}
+.rl-txt {
+  font-size: .55rem; letter-spacing: .3em;
+  text-transform: uppercase;
+  color: rgba(240,235,224,.35); font-weight: 700;
+}
+
+/* Scroll indicator */
+.ring-scroll-ind {
+  position: absolute;
+  bottom: 36px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; flex-direction: column;
+  align-items: center; gap: 6px;
+  z-index: 10;
+  opacity: 1; transition: opacity .5s;
+  pointer-events: none;
+}
+.ring-scroll-ind.hidden { opacity: 0; }
+.rsi-line {
+  width: 1px; height: 44px;
+  background: linear-gradient(to bottom, var(--red), transparent);
+  animation: siPulse 1.8s ease-in-out infinite;
+}
+.ring-scroll-ind span {
+  font-size: .5rem; letter-spacing: .22em;
+  text-transform: uppercase; color: var(--muted);
+}
+
+/* ── PRODUCT STAGE ── */
+.ring-product-stage {
+  position: absolute; inset: 0; z-index: 8;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity .6s ease;
+}
+.ring-product-stage.show {
+  opacity: 1; pointer-events: all;
+}
+
+/* Single product card */
+.rps-card {
+  width: min(480px, 88vw);
+  background: rgba(10,10,10,.92);
+  border: 1px solid rgba(232,56,28,.25);
+  border-radius: 6px;
+  overflow: hidden;
+  backdrop-filter: blur(24px);
+  box-shadow:
+    0 0 0 1px rgba(232,56,28,.08),
+    0 30px 80px rgba(0,0,0,.8),
+    0 0 60px rgba(232,56,28,.08);
+  transform: scale(.92);
+  transition: transform .6s cubic-bezier(.22,1,.36,1);
+}
+.ring-product-stage.show .rps-card {
+  transform: scale(1);
+}
+.rps-card-inner {
+  display: flex; flex-direction: column;
+}
+.rps-emoji {
+  height: 220px;
+  overflow: hidden;
+  display: block;
+  position: relative;
+}
+.rps-card:hover .rps-emoji img { transform: scale(1.06); }
+.rps-emoji img {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+  transition: transform .5s cubic-bezier(.22,1,.36,1);
+}
+.rps-badge {
+  position: absolute;
+  top: 16px; left: 16px; z-index: 2;
+  background: var(--red); color: #fff;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: .8rem; letter-spacing: .1em;
+  padding: 3px 10px; border-radius: 2px;
+  transition: opacity .3s;
+}
+.rps-badge:empty { display: none; }
+.rps-badge.nw-badge {
+  background: rgba(240,235,224,.12);
+  backdrop-filter: blur(8px); color: var(--white);
+}
+.rps-info {
+  padding: 20px 28px 28px;
+  border-top: 1px solid rgba(232,56,28,.12);
+}
+.rps-cat {
+  font-size: .58rem; color: var(--red);
+  letter-spacing: .22em; text-transform: uppercase;
+  font-weight: 700; margin-bottom: 6px;
+}
+.rps-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  letter-spacing: .06em; line-height: .9;
+  margin-bottom: 10px;
+}
+.rps-desc {
+  font-size: .8rem; color: rgba(240,235,224,.4);
+  font-weight: 200; line-height: 1.6; margin-bottom: 16px;
+}
+.rps-price-row {
+  display: flex; align-items: baseline; gap: 10px;
+  margin-bottom: 20px;
+}
+.rps-price {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2rem; letter-spacing: .06em; color: var(--red);
+}
+.rps-old {
+  font-size: .82rem; color: var(--muted);
+  text-decoration: line-through; font-weight: 200;
+}
+.rps-add {
+  width: 100%; background: var(--red); color: #fff;
+  border: none; cursor: none;
+  padding: 13px; border-radius: 2px;
+  font-family: 'Epilogue', sans-serif;
+  font-size: .75rem; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase;
+  position: relative; overflow: hidden;
+  transition: background .2s;
+}
+.rps-add::before {
+  content: ''; position: absolute; inset: 0;
+  background: rgba(255,255,255,.15);
+  transform: translateX(-110%) skewX(-20deg);
+  transition: transform .4s;
+}
+.rps-add:hover::before { transform: translateX(110%) skewX(-20deg); }
+.rps-add:hover { background: #c7300f; }
+
+/* Arrow buttons */
+.rps-arrow {
+  position: absolute; top: 50%;
+  transform: translateY(-50%);
+  width: 48px; height: 48px;
+  background: rgba(10,10,10,.7);
+  border: 1px solid rgba(240,235,224,.1);
+  border-radius: 50%; cursor: none; z-index: 10;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(240,235,224,.4);
+  transition: all .25s cubic-bezier(.22,1,.36,1);
+  backdrop-filter: blur(12px);
+}
+.rps-arrow svg { width: 20px; height: 20px; }
+.rps-prev { left: 24px; }
+.rps-next { right: 24px; }
+.rps-arrow:hover {
+  background: rgba(232,56,28,.15);
+  border-color: rgba(232,56,28,.5);
+  color: var(--white);
+  transform: translateY(-50%) scale(1.1);
+}
+.rps-arrow:disabled {
+  opacity: .2; pointer-events: none;
+}
+
+/* Dots */
+.rps-dots {
+  position: absolute; bottom: 100px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; gap: 8px; z-index: 10;
+}
+.rps-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(240,235,224,.18);
+  transition: all .35s cubic-bezier(.22,1,.36,1);
+  cursor: none;
+}
+.rps-dot.on { background: var(--red); transform: scale(1.4); }
+
+/* Counter */
+.rps-counter {
+  position: absolute; top: 24px; right: 24px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: .85rem; letter-spacing: .16em;
+  color: rgba(240,235,224,.25); z-index: 10;
+}
+
+/* Continue scroll hint */
+.rps-continue {
+  position: absolute; bottom: 32px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; flex-direction: column;
+  align-items: center; gap: 6px;
+  z-index: 10; opacity: 0;
+  transition: opacity .5s .3s;
+  pointer-events: none;
+}
+.ring-product-stage.show .rps-continue { opacity: 1; }
+.rps-continue span {
+  font-size: .5rem; letter-spacing: .22em;
+  text-transform: uppercase; color: var(--muted);
+}
+.rps-continue-line {
+  width: 1px; height: 36px;
+  background: linear-gradient(to bottom, var(--red), transparent);
+  animation: siPulse 1.8s ease-in-out infinite;
+}
+
+/* Product card swap animation */
+.rps-card.swap-out {
+  animation: cardSwapOut .3s ease forwards;
+}
+.rps-card.swap-in {
+  animation: cardSwapIn .4s cubic-bezier(.22,1,.36,1) forwards;
+}
+@keyframes cardSwapOut {
+  to { opacity: 0; transform: scale(.9) translateX(-20px); }
+}
+@keyframes cardSwapIn {
+  from { opacity: 0; transform: scale(.92) translateX(30px); }
+  to   { opacity: 1; transform: scale(1) translateX(0); }
+}
+
+@media (max-width: 900px) {
+  .ring-scene { height: 700vh; }
+  .rps-prev { left: 8px; }
+  .rps-next { right: 8px; }
+  .rps-arrow { width: 38px; height: 38px; }
+  .rps-emoji { height: 160px; font-size: 5rem; }
+}
+
+@media (max-width: 900px) {
+  nav { padding: 14px 20px; }
+  .navl { display: none; }
+  .sc2-inner { flex-direction: column; }
+  .sc2-left { width: 100%; min-height: 50vh; border-right: none; border-bottom: 1px solid var(--border); padding: 40px 20px; }
+  .sc2-right { min-height: 50vh; }
+  .sc2-cards { padding: 0 20px; }
+  .sc3-stats { grid-template-columns: 1fr; }
+  .sc3-stat { border-right: none; border-bottom: 1px solid var(--border); }
+  .sc4-pin { grid-template-columns: 1fr; }
+  .sc4-right { display: none; }
+  .sc5-pin { padding: 20px; }
+  .deal-box { padding: 40px 24px; grid-template-columns: 1fr; }
+  .deal-bg-txt { display: none; }
+  .rev-sec, .how-sec, .news { padding: 80px 20px; }
+  .rev-grid, .how-grid { grid-template-columns: 1fr; }
+  .how-box { border-right: none; border-bottom: 1px solid var(--border); }
+  .brands { gap: 28px; padding: 48px 20px; }
+  footer { grid-template-columns: 1fr 1fr; padding: 48px 20px; }
+  .ft-bot { padding: 20px; flex-direction: column; gap: 8px; text-align: center; }
+  .trust { grid-template-columns: 1fr 1fr; }
+  .trust-i:nth-child(2) { border-right: none; }
+  .cart-drw { width: 100%; }
+  .p2-content { padding: 60px 20px 80px; }
+  .p2-filters { padding: 14px 0; }
+  .hero-glow { width: 300px; height: 300px; }
+}
+
+@media (max-width: 600px) {
+  .hero-corner { display: none; }
+  footer { grid-template-columns: 1fr; }
+  .trust { grid-template-columns: 1fr; }
+  .trust-i { border-right: none; border-bottom: 1px solid var(--border); }
+}
+
+/* ═══════════════════════════════════════════════════
+   RING SIDE TEXT — LEFT & RIGHT per ring
+═══════════════════════════════════════════════════ */
+.ring-side-text {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  opacity: 0;
+  transition: opacity 0.6s ease, transform 0.6s cubic-bezier(.22,1,.36,1);
+  will-change: opacity, transform;
+}
+.ring-side-text.left  { left: 5vw; align-items: flex-start; }
+.ring-side-text.right { right: 5vw; align-items: flex-end; text-align: right; }
+
+.ring-side-text .rst-tag {
+  font-size: .55rem;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  color: var(--red);
+  font-weight: 700;
+}
+.ring-side-text .rst-heading {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(2rem, 3.5vw, 3.8rem);
+  letter-spacing: .06em;
+  line-height: .88;
+  color: var(--white);
+  font-weight: 900;
+}
+.ring-side-text .rst-body {
+  font-size: clamp(.72rem, 1.1vw, .9rem);
+  line-height: 1.75;
+  color: rgba(240,235,224,.45);
+  font-weight: 700;
+  max-width: 220px;
+}
+.ring-side-text .rst-line {
+  width: 36px;
+  height: 2px;
+  background: var(--red);
+  box-shadow: 0 0 8px var(--red);
+}
+.ring-side-text.left  .rst-line { margin-left: 0; }
+.ring-side-text.right .rst-line { margin-left: auto; }
+
+@media (max-width: 900px) {
+  .ring-side-text { display: none; }
+}
+
+/* ── Firebase Auth Nav Button ── */
+.nav-auth {
+  font-size:.63rem; font-weight:700; letter-spacing:.16em;
+  text-transform:uppercase; color:rgba(240,235,224,.4);
+  background:none; border:1px solid var(--border);
+  padding:9px 16px; border-radius:2px; cursor:none;
+  transition:all .25s; min-width:68px;
+}
+.nav-auth:hover { border-color:rgba(232,56,28,.4); color:var(--white); }
+.nav-auth.fb-loggedin {
+  border-color:rgba(232,56,28,.5); color:var(--red);
+  background:rgba(232,56,28,.08);
+}
+
+/* ── Cinematic How It Works ── */
+.hiw-wrap { height:600vh; position:relative; background:var(--black); }
+.hiw-pin  {
+  position:sticky; top:0; height:100vh;
+  overflow:hidden;
+}
+.hiw-stage {
+  position:absolute; inset:0;
+  display:grid; grid-template-columns:50% 50%;
+}
+/* Left: text panels */
+.hiw-left {
+  position:relative; overflow:hidden;
+  border-right:1px solid var(--border);
+  background:var(--black);
+}
+.hiw-panel {
+  position:absolute; inset:0;
+  display:flex; flex-direction:column; justify-content:center;
+  padding:80px 72px 80px 80px;
+  opacity:0; transform:translateY(40px) translateX(-20px);
+  transition:opacity .6s ease, transform .6s ease;
+  pointer-events:none;
+}
+.hiw-panel.on { opacity:1; transform:none; pointer-events:auto; }
+.hiw-panel-num {
+  font-family:'Bebas Neue',sans-serif;
+  font-size:9rem; color:rgba(232,56,28,.05);
+  line-height:1; position:absolute; top:40px; right:40px;
+  transition:color .4s;
+}
+.hiw-panel.on .hiw-panel-num { color:rgba(232,56,28,.1); }
+.hiw-tag {
+  font-size:.62rem; font-weight:700; letter-spacing:.26em;
+  text-transform:uppercase; color:var(--red);
+  display:flex; align-items:center; gap:12px; margin-bottom:20px;
+}
+.hiw-tag::before { content:''; width:24px; height:1px; background:var(--red); }
+.hiw-h {
+  font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(3rem,5.5vw,5.5rem);
+  line-height:.88; letter-spacing:.04em; margin-bottom:20px;
+}
+.hiw-p {
+  font-size:.9rem; line-height:1.85;
+  color:rgba(240,235,224,.45); font-weight:200; max-width:380px;
+}
+/* Progress bar */
+.hiw-prog {
+  margin-top:28px; height:2px;
+  background:rgba(240,235,224,.07); width:0;
+  position:relative; overflow:hidden;
+  transition:width .5s .2s ease;
+}
+.hiw-panel.on .hiw-prog { width:160px; }
+.hiw-prog::after {
+  content:''; position:absolute; inset:0;
+  background:var(--red); box-shadow:0 0 8px var(--red);
+  transform:scaleX(0); transform-origin:left;
+  transition:transform 1.2s .3s cubic-bezier(.22,1,.36,1);
+}
+.hiw-panel.on .hiw-prog::after { transform:scaleX(1); }
+/* Side dots nav */
+.hiw-dots-nav {
+  position:absolute; right:20px; top:50%;
+  transform:translateY(-50%);
+  display:flex; flex-direction:column; gap:10px; z-index:10;
+}
+.hiw-dot-nav {
+  width:5px; height:5px; border-radius:50%;
+  background:rgba(240,235,224,.18);
+  transition:all .35s cubic-bezier(.22,1,.36,1); cursor:none;
+}
+.hiw-dot-nav.on { background:var(--red); height:18px; border-radius:3px; }
+/* Right: 3D visual panels */
+.hiw-right { position:relative; overflow:hidden; }
+.hiw-vis {
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0;
+  transition:opacity .65s ease;
+}
+.hiw-vis.on { opacity:1; }
+.hiw-visbg {
+  position:absolute; inset:0;
+  opacity:0; transition:opacity .65s ease;
+}
+.hiw-visbg.on { opacity:1; }
+/* 3D scene container */
+.hiw-3d {
+  position:relative; z-index:2;
+  width:340px; height:340px;
+  display:flex; align-items:center; justify-content:center;
+  perspective:800px;
+  transform-style:preserve-3d;
+}
+/* Orbit ring */
+.hiw-orbit {
+  position:absolute; border-radius:50%;
+  border:1px solid rgba(232,56,28,.18);
+  animation:hiwOrbit 3s ease-in-out infinite;
+}
+.hiw-orbit:nth-child(1){width:220px;height:220px;animation-delay:0s}
+.hiw-orbit:nth-child(2){width:290px;height:290px;animation-delay:.5s}
+.hiw-orbit:nth-child(3){width:340px;height:340px;animation-delay:1s}
+@keyframes hiwOrbit {
+  0%,100%{opacity:.5;transform:scale(1) rotateX(60deg)}
+  50%{opacity:.12;transform:scale(1.08) rotateX(60deg)}
+}
+/* Main icon */
+.hiw-icon {
+  font-size:7rem; position:relative; z-index:3;
+  animation:hiwFloat 2.5s ease-in-out infinite;
+  filter:drop-shadow(0 0 28px rgba(232,56,28,.4));
+  transform-style:preserve-3d;
+}
+@keyframes hiwFloat {
+  0%,100%{transform:translateY(0) rotateY(-8deg) rotateX(5deg)}
+  50%{transform:translateY(-22px) rotateY(8deg) rotateX(-5deg)}
+}
+/* Floating mini cards for step 1 */
+.hiw-mini-card {
+  position:absolute; background:rgba(12,12,12,.9);
+  border:1px solid rgba(232,56,28,.2); border-radius:6px;
+  padding:12px 16px; backdrop-filter:blur(12px);
+  box-shadow:0 12px 40px rgba(0,0,0,.6);
+  animation:hiwCardFloat 3s ease-in-out infinite;
+  transform-style:preserve-3d;
+}
+.hiw-mini-card span { font-size:1.8rem; display:block; margin-bottom:4px; }
+.hiw-mini-card strong {
+  font-family:'Bebas Neue',sans-serif; font-size:.85rem;
+  letter-spacing:.08em; display:block; color:var(--white);
+}
+.hiw-mini-card em {
+  font-style:normal; font-family:'Bebas Neue',sans-serif;
+  font-size:.8rem; color:var(--red); letter-spacing:.06em;
+}
+@keyframes hiwCardFloat {
+  0%,100%{transform:translateY(0) rotateY(-10deg) rotateX(5deg)}
+  50%{transform:translateY(-14px) rotateY(10deg) rotateX(-5deg)}
+}
+/* Cart step: particles */
+.hiw-cart-wrap { position:relative; }
+.hiw-cart-badge {
+  position:absolute; top:-6px; right:-6px;
+  width:28px; height:28px; background:var(--red);
+  border-radius:50%; display:flex; align-items:center;
+  justify-content:center; font-family:'Bebas Neue',sans-serif;
+  font-size:.85rem; color:#fff; z-index:4;
+  animation:badgePulse 1.2s ease-in-out infinite;
+}
+@keyframes badgePulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.3)} }
+.hiw-item-fly {
+  position:absolute; font-size:1.8rem;
+  animation:itemFly 2s ease-in-out infinite;
+}
+@keyframes itemFly {
+  0%{transform:translate(0,0) scale(1); opacity:.8}
+  100%{transform:var(--fly-to) scale(0); opacity:0}
+}
+/* Shield step */
+.hiw-shield {
+  position:relative; width:200px; height:200px;
+  display:flex; align-items:center; justify-content:center;
+}
+.hiw-wave {
+  position:absolute; inset:0; border-radius:50%;
+  border:1px solid rgba(232,56,28,.3);
+  animation:shieldWave 2s ease-out infinite;
+}
+.hiw-wave:nth-child(2){animation-delay:.7s}
+.hiw-wave:nth-child(3){animation-delay:1.4s}
+@keyframes shieldWave {
+  0%{transform:scale(.5);opacity:.8}
+  100%{transform:scale(1.8);opacity:0}
+}
+/* Payment chips float */
+.hiw-chip {
+  position:absolute; background:rgba(15,15,15,.85);
+  border:1px solid rgba(232,56,28,.18); border-radius:4px;
+  padding:7px 14px; backdrop-filter:blur(8px);
+  font-family:'Bebas Neue',sans-serif; font-size:.75rem;
+  letter-spacing:.12em; display:flex; align-items:center;
+  gap:8px; animation:hiwFloat 2s ease-in-out infinite;
+}
+/* Rocket step */
+.hiw-rocket-wrap {
+  position:relative;
+  animation:rocketMove 1.4s ease-in-out infinite alternate;
+}
+@keyframes rocketMove {
+  from{transform:translateX(-10px) rotate(-4deg)}
+  to{transform:translateX(10px) rotate(4deg)}
+}
+.hiw-trail {
+  position:absolute; bottom:-28px; left:50%;
+  transform:translateX(-50%);
+  width:4px; height:54px;
+  background:linear-gradient(to top, var(--red), transparent);
+  animation:trailFlicker .3s ease-in-out infinite;
+}
+@keyframes trailFlicker{0%,100%{opacity:1;height:54px}50%{opacity:.3;height:30px}}
+/* Speed lines */
+.hiw-speed {
+  position:absolute; height:1px;
+  background:linear-gradient(to right,transparent,rgba(232,56,28,.35));
+  animation:hiwFloat 1.8s ease-in-out infinite;
+}
+/* Bottom counter */
+.hiw-counter {
+  position:absolute; bottom:40px; left:80px;
+  font-family:'Bebas Neue',sans-serif;
+  font-size:.9rem; letter-spacing:.2em;
+  color:rgba(240,235,224,.2); z-index:10;
+  pointer-events:none;
+}
+/* Bottom progress strip */
+.hiw-strip {
+  position:absolute; bottom:0; left:0; right:0; height:2px;
+  background:rgba(240,235,224,.05); z-index:10;
+  overflow:hidden;
+}
+.hiw-strip-fill {
+  height:100%; background:var(--red);
+  box-shadow:0 0 8px var(--red);
+  transform:scaleX(0); transform-origin:left;
+  transition:transform .5s ease;
+}
+/* Scroll hint */
+.hiw-scroll-hint {
+  position:absolute; bottom:42px; right:64px;
+  font-size:.54rem; letter-spacing:.2em;
+  text-transform:uppercase; color:rgba(240,235,224,.2);
+  display:flex; align-items:center; gap:8px;
+  pointer-events:none; z-index:10;
+}
+.hiw-scroll-hint::after { content:'→'; color:var(--red); }
+
+/* ═══════════════════════════════════════════════════
+   SAI TECH — FIXED SIDE BADGE
+═══════════════════════════════════════════════════ */
+.saitech-badge {
+  position: fixed;
+  right: -62px;
+  top: 50%;
+  transform: translateY(-50%) rotate(90deg);
+  z-index: 999;
+  transition: right .4s cubic-bezier(.22,1,.36,1);
+}
+.saitech-badge:hover { right: -4px; }
+
+.saitech-badge a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  background: rgba(6,6,6,.85);
+  border: 1px solid rgba(232,56,28,.25);
+  border-radius: 6px 6px 0 0;
+  padding: 10px 18px 10px 14px;
+  backdrop-filter: blur(20px);
+  box-shadow:
+    0 0 0 1px rgba(232,56,28,.08),
+    0 8px 32px rgba(0,0,0,.6),
+    0 0 24px rgba(232,56,28,.06);
+  position: relative;
+  overflow: hidden;
+  transition: border-color .3s, box-shadow .3s;
+}
+.saitech-badge a::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(232,56,28,.07), transparent);
+  transform: translateX(-100%);
+  transition: transform .6s ease;
+}
+.saitech-badge a:hover::before { transform: translateX(100%); }
+.saitech-badge a:hover {
+  border-color: rgba(232,56,28,.55);
+  box-shadow: 0 0 0 1px rgba(232,56,28,.15), 0 8px 40px rgba(232,56,28,.15), 0 0 40px rgba(232,56,28,.08);
+}
+
+.saitech-icon {
+  font-size: 1rem;
+  filter: drop-shadow(0 0 6px rgba(232,56,28,.8));
+  animation: stIconPulse 2.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes stIconPulse {
+  0%,100% { filter: drop-shadow(0 0 4px rgba(232,56,28,.6)); transform: scale(1); }
+  50%      { filter: drop-shadow(0 0 10px rgba(232,56,28,1)); transform: scale(1.2); }
+}
+
+.saitech-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.saitech-sup {
+  font-size: .42rem;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  color: var(--red);
+  font-weight: 700;
+  font-family: 'Epilogue', sans-serif;
+  line-height: 1;
+}
+.saitech-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: .95rem;
+  letter-spacing: .18em;
+  color: var(--white);
+  line-height: 1;
+}
+.saitech-name b { color: var(--red); }
+
+.saitech-arrow {
+  width: 14px; height: 14px;
+  border-top: 1.5px solid rgba(232,56,28,.5);
+  border-right: 1.5px solid rgba(232,56,28,.5);
+  transform: rotate(45deg);
+  margin-left: 4px;
+  flex-shrink: 0;
+  transition: border-color .3s, transform .3s;
+}
+.saitech-badge a:hover .saitech-arrow {
+  border-color: var(--red);
+  transform: rotate(45deg) translate(2px,-2px);
+}
+
+.saitech-dot {
+  position: absolute;
+  top: 8px; right: 8px;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 6px var(--red);
+  animation: stDotBlink 1.8s ease-in-out infinite;
+}
+@keyframes stDotBlink {
+  0%,100% { opacity: 1; }
+  50%      { opacity: .2; }
+}
+
+@media (max-width: 600px) {
+  .saitech-badge { right: -58px; }
+  .saitech-badge:hover { right: -2px; }
+}
+
+</style>
+</head>
+<body>
+
+<!-- ════════ CUSTOM CURSOR ════════ -->
+<div id="cur"></div>
+<div id="cur2"></div>
+
+<!-- ════════ SCROLL PROGRESS ════════ -->
+<div id="prog"></div>
+
+<!-- ════════ CINEMATIC LOADER ════════ -->
+<div id="ldr">
+  <div id="ldr-panels">
+    <div class="ldr-panel" id="lp1"></div>
+    <div class="ldr-panel" id="lp2"></div>
+    <div class="ldr-panel" id="lp3"></div>
+    <div class="ldr-panel" id="lp4"></div>
+    <div class="ldr-panel" id="lp5"></div>
+  </div>
+  <div class="ld-logo" id="ldLogo">K<b>R</b>ATE</div>
+  <div class="ld-bar"><div class="ld-fill" id="ldFill"></div></div>
+  <div class="ld-pct" id="ldPct">0%</div>
+  <div class="ld-tagline">The Ultimate Shop</div>
+</div>
+
+<!-- ════════ NAV ════════ -->
+<nav id="mainNav">
+  <a href="#" class="logo" id="homeLink">K<b>R</b>ATE</a>
+  <ul class="navl">
+    <li><a href="#" onclick="scrollToSection('sc2sec')">Shop</a></li>
+    <li><a href="#" onclick="scrollToSection('hiwWrap')">How It Works</a></li>
+    <li><a href="#" onclick="scrollToSection('dealsec')">Deals</a></li>
+    <li><a href="#" onclick="scrollToSection('revsec')">Reviews</a></li>
+  </ul>
+  <div class="nav-r">
+    <button class="nav-page-btn on" id="btnPage1">Home</button>
+    <button class="nav-page-btn" id="btnPage2">All Products</button>
+    <button class="nav-auth" id="navAuthBtn" onclick="window._fbLogin()"><span id="navAuthLabel">Login</span></button>
+    <button class="nav-cart" id="navCart">CART <span class="cbadge" id="cbadge">0</span></button>
+  </div>
+</nav>
+
+<!-- ════════════════════════════════════════════════
+     PAGE 1: MAIN SCROLL EXPERIENCE
+════════════════════════════════════════════════ -->
+<div class="page active" id="page1">
+
+  <!-- SCENE 1: HERO -->
+  <div class="sc1" id="sc1wrap">
+    <div class="sc1-pin">
+      <!-- Glow + grain -->
+      <div class="hero-glow"></div>
+      <div class="hero-bg-k parallax-mouse" id="heroBgK" data-speed="0.02">K</div>
+
+      <!-- Grid architecture -->
+      <div class="hero-line-h t"></div>
+      <div class="hero-line-h b"></div>
+      <div class="hero-line-v l"></div>
+      <div class="hero-line-v r"></div>
+      <div class="hero-corner tl"></div>
+      <div class="hero-corner tr"></div>
+      <div class="hero-corner bl"></div>
+      <div class="hero-corner br"></div>
+
+      <!-- Hero content -->
+      <div class="hero-content">
+        <div class="hero-eyebrow" id="heroEy">2025 Drop — Live Now</div>
+        <h1 class="hero-h1">
+          <span class="hline"><span class="hw" id="hw1">SHOP&nbsp;</span><span class="hw r" id="hw2">BOLD.</span></span>
+          <span class="hline"><span class="hw" id="hw3">LIVE&nbsp;</span><span class="hw f" id="hw4">LOUD.</span></span>
+        </h1>
+        <p class="hero-desc" id="heroDesc">Curated goods across tech, fashion, home & more.<br>No noise. Just great stuff.</p>
+        <div class="hero-cta" id="heroCta">
+          <a href="#" class="btn-main" onclick="scrollToSection('sc2sec')"><span>Browse Collection</span></a>
+          <a href="#" class="btn-outline" onclick="scrollToSection('dealsec')">Deals →</a>
+        </div>
+      </div>
+
+      <!-- Scroll indicator -->
+      <div class="scroll-ind" id="scrollInd">
+        <span class="si-txt">Scroll</span>
+        <div class="si-track"></div>
+      </div>
+
+      <!-- Floating particles -->
+      <div id="particles"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       CINEMATIC RING TUNNEL — ZOOM THROUGH 3 RINGS → PRODUCTS
+       Phase A: Outer ring assembles from broken pieces
+       Phase B: Camera zooms INTO outer ring (it flies past)
+       Phase C: Middle ring assembles → zoom through
+       Phase D: Inner ring assembles → zoom through
+       Phase E: Products appear one by one, arrow navigation
+  ═══════════════════════════════════════════════════════ -->
+  <div class="ring-scene" id="ringScene">
+    <div class="ring-pin" id="ringPin">
+
+      <!-- Main canvas — all ring drawing happens here -->
+      <canvas id="ringCanvas"></canvas>
+
+      <!-- ── RING SIDE TEXTS ── -->
+
+      <!-- OUTER RING texts -->
+      <div class="ring-side-text left" id="rstOuterL">
+        <div class="rst-tag">Outer Ring</div>
+        <div class="rst-heading">SHOP<br>BOLD.</div>
+        <div class="rst-line"></div>
+        <div class="rst-body">Curated tech, fashion &amp;<br>lifestyle drops — hand-picked<br>for those who set the tone.</div>
+      </div>
+      <div class="ring-side-text right" id="rstOuterR">
+        <div class="rst-tag">2025 Collection</div>
+        <div class="rst-heading">LIVE<br>LOUD.</div>
+        <div class="rst-line"></div>
+        <div class="rst-body">No noise. No filler.<br>Just great stuff at<br>prices that make sense.</div>
+      </div>
+
+      <!-- MIDDLE RING texts -->
+      <div class="ring-side-text left" id="rstMiddleL">
+        <div class="rst-tag">Middle Ring</div>
+        <div class="rst-heading">STYLE<br>MEETS<br>VALUE.</div>
+        <div class="rst-line"></div>
+        <div class="rst-body">Fashion drops that hit<br>different — every season,<br>every budget, every vibe.</div>
+      </div>
+      <div class="ring-side-text right" id="rstMiddleR">
+        <div class="rst-tag">Drop 2025</div>
+        <div class="rst-heading">WEAR<br>YOUR<br>STORY.</div>
+        <div class="rst-line"></div>
+        <div class="rst-body">Exclusive pieces.<br>Limited drops.<br>All yours at KRATE.</div>
+      </div>
+
+      <!-- INNER RING texts -->
+      <div class="ring-side-text left" id="rstInnerL">
+        <div class="rst-tag">Inner Ring</div>
+        <div class="rst-heading">TECH<br>THAT<br>MOVES.</div>
+        <div class="rst-line"></div>
+        <div class="rst-body">Gadgets &amp; gear built<br>for the next generation —<br>shipped in 48 hours.</div>
+      </div>
+      <div class="ring-side-text right" id="rstInnerR">
+        <div class="rst-tag">Krate Essentials</div>
+        <div class="rst-heading">MADE<br>FOR<br>YOU.</div>
+        <div class="rst-line"></div>
+        <div class="rst-body">2,400+ products.<br>10,000+ happy buyers.<br>98% satisfaction rate.</div>
+      </div>
+
+
+
+      <!-- Radial vignette overlay for depth -->
+      <div class="ring-vignette"></div>
+
+      <!-- Cinematic phase label -->
+      <div class="ring-label" id="ringLabel">
+        <span class="rl-bar"></span>
+        <span class="rl-txt" id="rlTxt">ASSEMBLING</span>
+        <span class="rl-bar"></span>
+      </div>
+
+      <!-- Scroll indicator (fades after first scroll) -->
+      <div class="ring-scroll-ind" id="ringScrollInd">
+        <div class="rsi-line"></div>
+        <span>Scroll</span>
+      </div>
+
+      <!-- PRODUCT SHOWCASE — appears after zoom through all rings -->
+      <div class="ring-product-stage" id="ringProductStage">
+        <!-- Single product card (updates on arrow nav) -->
+        <div class="rps-card" id="rpsCard">
+          <div class="rps-card-inner">
+            <div class="rps-badge" id="rpsBadge"></div>
+            <div class="rps-emoji" id="rpsEmoji"></div>
+            <div class="rps-info">
+              <div class="rps-cat" id="rpsCat"></div>
+              <div class="rps-name" id="rpsName"></div>
+              <div class="rps-desc" id="rpsDesc"></div>
+              <div class="rps-price-row">
+                <span class="rps-price" id="rpsPrice"></span>
+                <span class="rps-old" id="rpsOld"></span>
+              </div>
+              <button class="rps-add" id="rpsAdd">+ Add to Cart</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Arrow navigation -->
+        <button class="rps-arrow rps-prev" id="rpsPrev" aria-label="Previous">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <button class="rps-arrow rps-next" id="rpsNext" aria-label="Next">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+
+        <!-- Product dots -->
+        <div class="rps-dots" id="rpsDots"></div>
+
+        <!-- Counter -->
+        <div class="rps-counter" id="rpsCounter">01 / 03</div>
+
+        <!-- Continue scroll hint -->
+        <div class="rps-continue" id="rpsContinue">
+          <span>Scroll to continue</span>
+          <div class="rps-continue-line"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SCENE 2: FEATURED SLIDING CARDS -->
+  <div class="sc2" id="sc2sec">
+    <div class="sc2-pin" id="sc2pin">
+      <div class="sc2-inner">
+        <div class="sc2-left" id="sc2Left">
+          <div class="sc2-lbl">Featured Drops</div>
+          <!-- slide text panels injected by JS -->
+        </div>
+        <div class="sc2-right">
+          <div class="sc2-cards-wrap">
+            <div class="sc2-cards" id="sc2Cards"></div>
+          </div>
+          <div class="sc2-dots" id="sc2Dots"></div>
+          <div class="sc2-drag-hint">Scroll to explore</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 3: STATS -->
+  <div class="sc3" id="statsec">
+    <div class="sc3-pin" id="sc3pin">
+      <div class="sc3-label" id="sc3label">Numbers That Speak</div>
+      <div class="sc3-stats">
+        <div class="sc3-stat" id="ss1">
+          <div class="sc3-stat-n" id="sn1">2.4<b>K+</b></div>
+          <div class="sc3-stat-l">Products</div>
+        </div>
+        <div class="sc3-stat" id="ss2">
+          <div class="sc3-stat-n" id="sn2">98<b>%</b></div>
+          <div class="sc3-stat-l">Satisfaction</div>
+        </div>
+        <div class="sc3-stat" id="ss3">
+          <div class="sc3-stat-n" id="sn3">10<b>K+</b></div>
+          <div class="sc3-stat-l">Happy Buyers</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MARQUEE -->
+  <div class="marquee-strip">
+    <div class="mtrack" id="mtrack"></div>
+  </div>
+
+  <!-- sc4 replaced by cinematic HIW section below -->
+
+  <!-- SCENE 5: DEAL BANNER -->
+  <div class="sc5" id="dealsec">
+    <div class="sc5-pin">
+      <div class="deal-box" id="dealBox">
+        <div class="deal-bg-txt">50%</div>
+        <div>
+          <h2 class="deal-h">UP TO 50% OFF<br>SELECT ITEMS</h2>
+          <p class="deal-p">New deals every Monday. Limited stock — don't sleep on it.</p>
+          <div class="deal-countdown" id="countdown"></div>
+        </div>
+        <button class="btn-white" id="dealBtn"><span>Shop the Sale</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRUST STRIP -->
+  <div class="trust">
+    <div class="trust-i"><span class="ti-ic">🚚</span><div class="ti-t">Free Delivery</div><div class="ti-s">On all orders above ₹499</div></div>
+    <div class="trust-i"><span class="ti-ic">🔄</span><div class="ti-t">Easy Returns</div><div class="ti-s">30-day hassle-free policy</div></div>
+    <div class="trust-i"><span class="ti-ic">🔒</span><div class="ti-t">Secure Payment</div><div class="ti-s">100% encrypted checkout</div></div>
+    <div class="trust-i"><span class="ti-ic">💬</span><div class="ti-t">24/7 Support</div><div class="ti-s">Real humans, always here</div></div>
+  </div>
+
+  <!-- REVIEWS -->
+  <section class="rev-sec" id="revsec">
+    <div class="sec-hd">
+      <div class="sec-lbl">Testimonials</div>
+      <h2 class="sec-title">WHAT PEOPLE<br><i>Say</i></h2>
+    </div>
+    <div class="rev-grid">
+      <div class="rev-c" id="rc0"><div class="rev-stars">★★★★★</div><div class="rev-txt">"Didn't expect this quality at this price. ProSound headphones arrived in 3 days and they sound incredible. KRATE has earned a lifetime customer."</div><div class="rev-auth"><div class="rev-av">AR</div><div><div class="rev-nm">Arjun Rawat</div><div class="rev-mt">Verified · Tech</div></div></div></div>
+      <div class="rev-c" id="rc1"><div class="rev-stars">★★★★★</div><div class="rev-txt">"Super smooth checkout — the 3-step process was genuinely clean. Order arrived in 2 days with perfect packaging. Totally impressed by KRATE."</div><div class="rev-auth"><div class="rev-av">PS</div><div><div class="rev-nm">Priya Sharma</div><div class="rev-mt">Verified · Fashion</div></div></div></div>
+      <div class="rev-c" id="rc2"><div class="rev-stars">★★★★☆</div><div class="rev-txt">"Great home range. The ceramic mug set is stunning quality. Quick shipping, well packed. Would love more colour options — overall very satisfied."</div><div class="rev-auth"><div class="rev-av">NK</div><div><div class="rev-nm">Naman Kapoor</div><div class="rev-mt">Verified · Home</div></div></div></div>
+    </div>
+  </section>
+
+  <!-- ═══════ HOW IT WORKS — CINEMATIC SCROLL EXPERIENCE ═══════ -->
+  <div class="hiw-wrap" id="hiwWrap">
+    <div class="hiw-pin" id="hiwPin">
+      <div class="hiw-stage">
+
+        <!-- LEFT: Text panels stacked, JS switches them -->
+        <div class="hiw-left" id="hiwLeft">
+
+          <div class="hiw-panel on" id="hiwP0">
+            <div class="hiw-panel-num">01</div>
+            <div class="hiw-tag">Discover</div>
+            <h2 class="hiw-h">BROWSE<br>&amp; FIND</h2>
+            <p class="hiw-p">Thousands of curated products across every category. Filter by mood, price, or what's trending right now.</p>
+            <div class="hiw-prog"></div>
+          </div>
+
+          <div class="hiw-panel" id="hiwP1">
+            <div class="hiw-panel-num">02</div>
+            <div class="hiw-tag">Select</div>
+            <h2 class="hiw-h">ADD YOUR<br>FAVOURITES</h2>
+            <p class="hiw-p">Cart, quantities, promo codes — all in one clean flow. Review before you commit.</p>
+            <div class="hiw-prog"></div>
+          </div>
+
+          <div class="hiw-panel" id="hiwP2">
+            <div class="hiw-panel-num">03</div>
+            <div class="hiw-tag">Checkout</div>
+            <h2 class="hiw-h">SECURE<br>PAYMENT</h2>
+            <p class="hiw-p">UPI, card, net banking, or COD. 100% encrypted. Checkout in under 60 seconds.</p>
+            <div class="hiw-prog"></div>
+          </div>
+
+          <div class="hiw-panel" id="hiwP3">
+            <div class="hiw-panel-num">04</div>
+            <div class="hiw-tag">Delivered</div>
+            <h2 class="hiw-h">AT YOUR<br>DOORSTEP</h2>
+            <p class="hiw-p">2–5 days. Live tracking. Free above ₹499. Always.</p>
+            <div class="hiw-prog"></div>
+          </div>
+
+          <!-- Side dots -->
+          <div class="hiw-dots-nav" id="hiwDotsNav"></div>
+        </div>
+
+        <!-- RIGHT: 3D visual scenes -->
+        <div class="hiw-right" id="hiwRight">
+
+          <!-- bg gradients -->
+          <div class="hiw-visbg on"  id="hiwBg0" style="background:linear-gradient(135deg,#0a0e18,#141d2e)"></div>
+          <div class="hiw-visbg"     id="hiwBg1" style="background:linear-gradient(135deg,#180a0a,#2c1010)"></div>
+          <div class="hiw-visbg"     id="hiwBg2" style="background:linear-gradient(135deg,#0a180c,#122010)"></div>
+          <div class="hiw-visbg"     id="hiwBg3" style="background:linear-gradient(135deg,#181200,#282000)"></div>
+
+          <!-- Scene 0: floating product cards -->
+          <div class="hiw-vis on" id="hiwV0">
+            <div class="hiw-3d" id="hiw3d0">
+              <div class="hiw-orbit"></div>
+              <div class="hiw-orbit"></div>
+              <div class="hiw-orbit"></div>
+              <!-- mini cards -->
+              <div class="hiw-mini-card" style="top:8%;left:5%;animation-delay:0s">
+                <span>🎧</span><strong>ProSound</strong><em>₹1,299</em>
+              </div>
+              <div class="hiw-mini-card" style="top:22%;right:4%;animation-delay:.7s;transform:scale(.85)">
+                <span>⌚</span><strong>Smart Watch</strong><em>₹2,199</em>
+              </div>
+              <div class="hiw-mini-card" style="bottom:14%;left:8%;animation-delay:1.4s;transform:scale(.75)">
+                <span>👟</span><strong>Sneakers</strong><em>₹1,599</em>
+              </div>
+              <div class="hiw-icon" style="font-size:5rem;position:relative;z-index:5">🔍</div>
+            </div>
+          </div>
+
+          <!-- Scene 1: cart with items flying in -->
+          <div class="hiw-vis" id="hiwV1">
+            <div class="hiw-3d" id="hiw3d1">
+              <div class="hiw-orbit"></div>
+              <div class="hiw-orbit"></div>
+              <div class="hiw-cart-wrap">
+                <div class="hiw-icon" style="position:relative;z-index:3">🛒</div>
+                <div class="hiw-cart-badge">3</div>
+              </div>
+              <!-- Flying items -->
+              <div class="hiw-item-fly" style="top:25%;left:60%;--fly-to:translate(-80px,-60px);animation-delay:0s;animation-duration:1.8s">🎧</div>
+              <div class="hiw-item-fly" style="top:55%;left:65%;--fly-to:translate(-70px,-50px);animation-delay:.6s;animation-duration:1.6s">👟</div>
+              <div class="hiw-item-fly" style="top:40%;left:58%;--fly-to:translate(-75px,-55px);animation-delay:1.2s;animation-duration:2s">☕</div>
+            </div>
+          </div>
+
+          <!-- Scene 2: shield + payment chips -->
+          <div class="hiw-vis" id="hiwV2">
+            <div class="hiw-3d" id="hiw3d2">
+              <div class="hiw-shield">
+                <div class="hiw-wave"></div>
+                <div class="hiw-wave"></div>
+                <div class="hiw-wave"></div>
+                <div class="hiw-icon" style="font-size:5rem;position:relative;z-index:4;animation:none;filter:drop-shadow(0 0 32px rgba(232,56,28,.55))">🔒</div>
+              </div>
+              <!-- Payment chips -->
+              <div class="hiw-chip" style="top:20%;left:58%;animation-delay:.2s">📱 <span>UPI</span></div>
+              <div class="hiw-chip" style="top:36%;left:64%;animation-delay:.8s;font-size:.7rem">💳 <span>CARD</span></div>
+              <div class="hiw-chip" style="top:54%;left:56%;animation-delay:1.4s;font-size:.68rem">🏦 <span>NET BANKING</span></div>
+              <div class="hiw-chip" style="top:70%;left:62%;animation-delay:.5s;font-size:.66rem">💵 <span>COD</span></div>
+            </div>
+          </div>
+
+          <!-- Scene 3: rocket delivery -->
+          <div class="hiw-vis" id="hiwV3">
+            <div class="hiw-3d" id="hiw3d3">
+              <div class="hiw-orbit"></div>
+              <div class="hiw-orbit"></div>
+              <div class="hiw-rocket-wrap">
+                <div class="hiw-icon">📦</div>
+                <div class="hiw-trail"></div>
+              </div>
+              <!-- Speed lines -->
+              <div class="hiw-speed" style="top:38%;left:5%;width:100px;animation-delay:0s"></div>
+              <div class="hiw-speed" style="top:48%;left:8%;width:70px;animation-delay:.4s"></div>
+              <div class="hiw-speed" style="top:58%;left:4%;width:85px;animation-delay:.8s"></div>
+              <div class="hiw-speed" style="top:43%;left:6%;width:55px;animation-delay:1.2s"></div>
+            </div>
+          </div>
+
+        </div><!-- /hiw-right -->
+      </div><!-- /hiw-stage -->
+
+      <!-- UI chrome -->
+      <div class="hiw-counter" id="hiwCounter">01 / 04</div>
+      <div class="hiw-strip"><div class="hiw-strip-fill" id="hiwFill"></div></div>
+      <div class="hiw-scroll-hint">SCROLL TO CONTINUE</div>
+
+    </div><!-- /hiw-pin -->
+  </div><!-- /hiw-wrap -->
+
+  <!-- BRANDS -->
+  <div class="brands">
+    <div class="brand">SONY</div><div class="brand">BOAT</div>
+    <div class="brand">NIKE</div><div class="brand">IKEA</div>
+    <div class="brand">APPLE</div><div class="brand">LAKME</div><div class="brand">PUMA</div>
+  </div>
+
+  <!-- NEWSLETTER -->
+  <div class="news">
+    <div class="news-inner" id="newsInner">
+      <h2 class="news-h">JOIN THE<br><b>KRATE</b><br>CREW</h2>
+      <p class="news-p">18,000+ shoppers get early sale access and exclusive discount codes every week. No spam.</p>
+      <div class="news-form">
+        <input class="news-in" type="email" placeholder="your@email.com" id="newsEmail">
+        <button class="news-btn" id="newsBtn">Subscribe →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer id="about">
+    <div class="ft-brand">
+      <a href="#" class="logo">K<b>R</b>ATE</a>
+      <p>A college project built with passion — everyday products without the noise.</p>
+      <div class="ft-soc">
+        <button class="ft-sb" id="ftIg">📸</button>
+        <button class="ft-sb" id="ftTw">🐦</button>
+        <button class="ft-sb" id="ftYt">▶️</button>
+      </div>
+    </div>
+    <div class="ft-col"><h4>Shop</h4><ul><li><a href="#">New Arrivals</a></li><li><a href="#">Best Sellers</a></li><li><a href="#">Sale Items</a></li><li><a href="#">Gift Bundles</a></li></ul></div>
+    <div class="ft-col"><h4>Help</h4><ul><li><a href="#">Track Order</a></li><li><a href="#">Returns</a></li><li><a href="#">FAQ</a></li><li><a href="#">Contact</a></li></ul></div>
+    <div class="ft-col"><h4>Company</h4><ul><li><a href="#">About</a></li><li><a href="#">Blog</a></li><li><a href="#">Privacy</a></li><li><a href="#">Terms</a></li></ul></div>
+  </footer>
+  <div class="ft-bot">
+    <p>© 2025 KRATE. Made with ☕ for a college project.</p>
+    <p style="display:flex;gap:18px"><a href="#" style="color:inherit;text-decoration:none">Privacy</a><a href="#" style="color:inherit;text-decoration:none">Terms</a></p>
+  </div>
+
+</div><!-- /page1 -->
+
+<!-- ════════════════════════════════════════════════
+     PAGE 2: ALL PRODUCTS
+════════════════════════════════════════════════ -->
+<div class="page" id="page2">
+  <div class="p2-hero">
+    <div class="p2-hero-bg">SHOP</div>
+    <div class="p2-eyebrow" style="z-index:2;position:relative">All Products — 12 Items</div>
+    <h1 class="p2-h1" style="position:relative;z-index:2">THE <span>FULL</span><br>CATALOGUE</h1>
+    <p class="p2-sub" style="position:relative;z-index:2">Everything we carry. Filter, explore, cart.</p>
+  </div>
+  <div class="p2-content">
+    <div class="p2-filters" id="p2Filters"></div>
+    <div style="margin-bottom:16px">
+      <div class="p2-section-title" id="p2t1">TECH & GADGETS</div>
+      <div class="p2-sec-sub" id="p2s1">The latest in audio, wearables & accessories</div>
+    </div>
+    <div class="p2-grid" id="p2GridTech" style="margin-bottom:64px"></div>
+    <div style="margin-bottom:16px">
+      <div class="p2-section-title" id="p2t2">FASHION</div>
+      <div class="p2-sec-sub" id="p2s2">Style that speaks for itself</div>
+    </div>
+    <div class="p2-grid" id="p2GridFashion" style="margin-bottom:64px"></div>
+    <div style="margin-bottom:16px">
+      <div class="p2-section-title" id="p2t3">HOME & LIVING</div>
+      <div class="p2-sec-sub" id="p2s3">Make your space feel like you</div>
+    </div>
+    <div class="p2-grid" id="p2GridHome" style="margin-bottom:64px"></div>
+    <div style="margin-bottom:16px">
+      <div class="p2-section-title" id="p2t4">FITNESS & BEAUTY</div>
+      <div class="p2-sec-sub" id="p2s4">Feel your best every day</div>
+    </div>
+    <div class="p2-grid" id="p2GridFitBeauty" style="margin-bottom:0"></div>
+  </div>
+</div><!-- /page2 -->
+
+<!-- CART -->
+<div class="cart-ov" id="cartOv"></div>
+<div class="cart-drw" id="cartDrw">
+  <div class="c-hd"><h3>YOUR CART</h3><button class="c-cls" id="cartClose">✕</button></div>
+  <div class="c-lst" id="cartList"><div class="c-empty"><span class="ei">🛒</span><p>Cart is empty.<br>Add something bold.</p></div></div>
+  <div class="c-ft" id="cartFtr" style="display:none">
+    <div class="c-row"><span>Subtotal</span><span id="cSub">₹0</span></div>
+    <div class="c-row"><span>Delivery</span><span id="cDel">₹49</span></div>
+    <div class="c-tot"><span>TOTAL</span><span id="cTot">₹0</span></div>
+    <button class="btn-co" id="checkoutBtn">Proceed to Checkout →</button>
+  </div>
+</div>
+
+<!-- CHECKOUT MODAL -->
+<div class="modal-ov" id="modalOv">
+  <div class="modal">
+    <div class="co-hd">
+      <div class="co-pg" id="coPg"></div>
+      <div class="co-ttl" id="coTtl"></div>
+      <div class="co-st" id="coSt"></div>
+    </div>
+    <div class="co-bd" id="coBd"></div>
+    <div class="co-ft" id="coFt"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- ════════════════════════════════════════════════
+     JAVASCRIPT — CINEMATIC ENGINE
+════════════════════════════════════════════════ -->
+<script>
+(function () {
+'use strict';
+
+/* ── GSAP REGISTRATION ─────────────────────── */
+gsap.registerPlugin(ScrollTrigger);
+
+/* ══════════════════════════════════════════════════════════
+   ██████  PRODUCTS CONFIG — EDIT HERE TO ADD/CHANGE PRODUCTS
+   ══════════════════════════════════════════════════════════
+
+   FIELDS:
+   id    → unique number (don't repeat)
+   nm    → product name
+   price → selling price (number, no ₹)
+   old   → original price before cut (remove this line if no cut price)
+   img   → image URL  (paste any direct image link, or a relative path like 'images/product1.jpg')
+   cat   → category: 'tech' | 'fashion' | 'home' | 'fitness' | 'beauty'
+   badge → badge text like 'SALE' | 'NEW' | 'HOT' (remove this line for no badge)
+   nw    → true  (add this only for NEW badge — gives it a different style)
+   desc  → short description shown on card
+
+   TO ADD A NEW PRODUCT: copy any block below, paste at the end (before the ];), change the values.
+   ══════════════════════════════════════════════════════════ */
+const PRODS = [
+  {
+    id: 1,
+    nm: 'ProSound Wireless',
+    price: 1299,
+    old: 2499,                          // ← cut price (delete this line to remove strikethrough)
+    img: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&q=80',
+    cat: 'tech',
+    badge: 'SALE',
+    desc: 'Premium wireless audio, 40hr battery, ANC'
+  },
+  {
+    id: 2,
+    nm: 'Canvas Tote Bag',
+    price: 449,
+    img: 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?w=400&q=80',
+    cat: 'fashion',
+    badge: 'NEW', nw: true,
+    desc: 'Organic cotton, durable & stylish'
+  },
+  {
+    id: 3,
+    nm: 'Ceramic Mug Set',
+    price: 699,
+    img: 'https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?w=400&q=80',
+    cat: 'home',
+    desc: 'Set of 4, dishwasher safe, stunning glaze'
+  },
+  {
+    id: 4,
+    nm: 'Resistance Bands',
+    price: 399,
+    old: 599,
+    img: 'https://images.unsplash.com/photo-1598632640487-6ea4a4e8b963?w=400&q=80',
+    cat: 'fitness',
+    badge: 'SALE',
+    desc: '5 resistance levels, natural latex'
+  },
+  {
+    id: 5,
+    nm: 'Face Glow Serum',
+    price: 549,
+    img: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=400&q=80',
+    cat: 'beauty',
+    badge: 'NEW', nw: true,
+    desc: 'Vitamin C + Niacinamide, visible glow'
+  },
+  {
+    id: 6,
+    nm: 'Smart Watch S3',
+    price: 2199,
+    old: 3499,
+    img: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80',
+    cat: 'tech',
+    badge: 'SALE',
+    desc: 'AMOLED, GPS, SpO2, 7-day battery'
+  },
+  {
+    id: 7,
+    nm: 'Linen Throw Pillow',
+    price: 329,
+    img: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400&q=80',
+    cat: 'home',
+    desc: 'Stonewashed linen, 45×45cm, 3 colours'
+  },
+  {
+    id: 8,
+    nm: 'Running Sneakers',
+    price: 1599,
+    img: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&q=80',
+    cat: 'fashion',
+    desc: 'Lightweight mesh, responsive sole'
+  },
+  {
+    id: 9,
+    nm: 'Wireless Charger',
+    price: 799,
+    img: 'https://images.unsplash.com/photo-1615526675159-e248c3021d3f?w=400&q=80',
+    cat: 'tech',
+    badge: 'NEW', nw: true,
+    desc: '15W fast charge, universal Qi'
+  },
+  {
+    id: 10,
+    nm: 'Yoga Mat Pro',
+    price: 899,
+    old: 1299,
+    img: 'https://images.unsplash.com/photo-1601925260368-ae2f83cf8b7f?w=400&q=80',
+    cat: 'fitness',
+    badge: 'SALE',
+    desc: '6mm TPE, non-slip, alignment lines'
+  },
+  {
+    id: 11,
+    nm: 'Scented Candle Set',
+    price: 599,
+    img: 'https://images.unsplash.com/photo-1602028915047-37269d1a73f7?w=400&q=80',
+    cat: 'home',
+    desc: '3-piece soy wax, 40hr burn each'
+  },
+  {
+    id: 12,
+    nm: 'Sunscreen SPF 50',
+    price: 349,
+    img: 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=400&q=80',
+    cat: 'beauty',
+    desc: 'No white cast, PA++++, water-resistant'
+  },
+  /* ── ADD YOUR NEW PRODUCT BELOW THIS LINE ──
+  {
+    id: 13,
+    nm: 'Your Product Name',
+    price: 999,
+    old: 1499,
+    img: 'https://your-image-url.com/photo.jpg',
+    cat: 'tech',
+    badge: 'NEW', nw: true,
+    desc: 'Short description of your product'
+  },
+  ── END ── */
+];
+const BG = {
+  tech:    'linear-gradient(135deg,#0d1117,#1a2233)',
+  fashion: 'linear-gradient(135deg,#1a0d0d,#2e1515)',
+  home:    'linear-gradient(135deg,#0d1a0d,#152615)',
+  fitness: 'linear-gradient(135deg,#1a1400,#2e2400)',
+  beauty:  'linear-gradient(135deg,#1a0d18,#2e1529)',
+};
+
+/* ── CURSOR ────────────────────────────────── */
+const cur  = document.getElementById('cur');
+const cur2 = document.getElementById('cur2');
+let mx = 0, my = 0, rx = 0, ry = 0;
+
+document.addEventListener('mousemove', e => {
+  mx = e.clientX; my = e.clientY;
+  gsap.set(cur, { x: mx, y: my });
+});
+(function curLoop() {
+  rx += (mx - rx) * .09;
+  ry += (my - ry) * .09;
+  gsap.set(cur2, { x: rx, y: ry });
+  requestAnimationFrame(curLoop);
+})();
+document.addEventListener('mouseover', e => {
+  const hov = e.target.closest('a,button,.sc2-card,.pg-card');
+  document.body.classList.toggle('hov', !!hov);
+});
+
+/* ── MOUSE PARALLAX ───────────────────────── */
+document.addEventListener('mousemove', e => {
+  const cx = (e.clientX / window.innerWidth  - .5) * 2;
+  const cy = (e.clientY / window.innerHeight - .5) * 2;
+  document.querySelectorAll('.parallax-mouse').forEach(el => {
+    const s = parseFloat(el.dataset.speed || .03);
+    gsap.to(el, { x: cx * s * 100, y: cy * s * 60, duration: 1.2, ease: 'power2.out' });
+  });
+});
+
+/* ── PARTICLES ────────────────────────────── */
+const particlesEl = document.getElementById('particles');
+for (let i = 0; i < 18; i++) {
+  const p = document.createElement('div');
+  p.className = 'hero-particle';
+  const size = Math.random() * 3 + 1;
+  p.style.cssText = `
+    width:${size}px; height:${size}px;
+    background:var(--red);
+    left:${Math.random() * 100}%;
+    opacity:${Math.random() * .4 + .1};
+    animation-duration:${Math.random() * 12 + 8}s;
+    animation-delay:${Math.random() * 8}s;
+  `;
+  particlesEl.appendChild(p);
+}
+
+/* ── PROGRESS BAR ─────────────────────────── */
+const progEl = document.getElementById('prog');
+window.addEventListener('scroll', () => {
+  const h = document.documentElement;
+  const pct = h.scrollTop / (h.scrollHeight - h.clientHeight);
+  progEl.style.width = (pct * 100) + '%';
+}, { passive: true });
+
+/* ── MARQUEE ──────────────────────────────── */
+const msgs = ['FREE SHIPPING ABOVE ₹499','NEW DROPS EVERY MONDAY','30-DAY EASY RETURNS','CODE KRATE10 FOR 10% OFF','TRUSTED BY 10,000+ SHOPPERS'];
+const mt = document.getElementById('mtrack');
+[...msgs, ...msgs, ...msgs, ...msgs].forEach((t, i) => {
+  const s = document.createElement('span');
+  s.className = 'mi' + (i % 2 ? ' w' : '');
+  s.textContent = '  ' + t + '  ';
+  mt.appendChild(s);
+});
+
+/* ── COUNTDOWN ────────────────────────────── */
+function renderCountdown() {
+  const cd = document.getElementById('countdown'); if (!cd) return;
+  const end = new Date(); end.setHours(end.getHours()+8, end.getMinutes()+23, end.getSeconds()+47);
+  function upd() {
+    const diff = Math.max(0, end - new Date());
+    const h = Math.floor(diff / 3600000), m = Math.floor((diff % 3600000) / 60000), s = Math.floor((diff % 60000) / 1000);
+    cd.innerHTML = [['HRS',h],['MIN',m],['SEC',s]].map(([l,v]) =>
+      `<div class="dc"><div class="dc-n">${String(v).padStart(2,'0')}</div><div class="dc-l">${l}</div></div>`
+    ).join('');
+  }
+  upd(); setInterval(upd, 1000);
+}
+renderCountdown();
+
+/* ══════════════════════════════════════════════
+   CINEMATIC LOADER
+══════════════════════════════════════════════ */
+const ldFill = document.getElementById('ldFill');
+const ldPct  = document.getElementById('ldPct');
+const ldLogo = document.getElementById('ldLogo');
+
+// Animate logo in
+gsap.to(ldLogo, { opacity: 1, y: 0, duration: .8, delay: .1, ease: 'power3.out',
+  from: { opacity: 0, y: 30 }
+});
+gsap.fromTo(ldLogo, { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: .8, delay: .1, ease: 'power3.out' });
+
+let pct = 0;
+const loadInterval = setInterval(() => {
+  pct = Math.min(pct + Math.random() * 18, 100);
+  const p = Math.floor(pct);
+  ldFill.style.width = p + '%';
+  ldPct.textContent  = p + '%';
+  if (pct >= 100) {
+    clearInterval(loadInterval);
+    setTimeout(exitLoader, 200);
+  }
+}, 90);
+
+function exitLoader() {
+  const ldr = document.getElementById('ldr');
+  const panels = document.querySelectorAll('.ldr-panel');
+
+  // Fade out loader content
+  gsap.to([ldLogo, ldFill.parentElement, ldPct, document.querySelector('.ld-tagline')], {
+    opacity: 0, y: -20, duration: .4, stagger: .05, ease: 'power2.in'
+  });
+
+  // Panel wipe exit
+  setTimeout(() => {
+    gsap.to(panels, {
+      scaleY: 0,
+      duration: 1,
+      stagger: .08,
+      ease: 'power4.inOut',
+      transformOrigin: 'bottom',
+      onComplete: () => {
+        ldr.style.display = 'none';
+        initHero();
+      }
+    });
+  }, 400);
+}
+
+/* ══════════════════════════════════════════════
+   HERO ENTRANCE (after loader)
+══════════════════════════════════════════════ */
+function initHero() {
+  // Nav slide in
+  gsap.to('#mainNav', { y: 0, duration: 1, ease: 'power3.out' });
+
+  // Words staggered reveal
+  const words = ['hw1','hw2','hw3','hw4'];
+  words.forEach((id, i) => {
+    gsap.to(`#${id}`, {
+      y: 0,
+      duration: 1.1,
+      delay: i * .12 + .1,
+      ease: 'power4.out'
+    });
+  });
+
+  // Eyebrow, desc, CTA
+  setTimeout(() => {
+    const ey = document.getElementById('heroEy');
+    const ds = document.getElementById('heroDesc');
+    const ct = document.getElementById('heroCta');
+    const si = document.getElementById('scrollInd');
+    if (ey) { ey.style.opacity = '1'; ey.style.transform = 'translateY(0)'; }
+    if (ds) { ds.style.opacity = '1'; ds.style.transform = 'translateY(0)'; }
+    if (ct) { ct.style.opacity = '1'; ct.style.transform = 'translateY(0)'; }
+    if (si) si.classList.add('on');
+  }, 600);
+
+  // Init all scroll magic after hero is live
+  setTimeout(initScrollAnimations, 300);
+}
+
+/* ══════════════════════════════════════════════
+   BUILD SCENE 2: FEATURED CARDS
+══════════════════════════════════════════════ */
+const FEATURED = PRODS.slice(0, 8);
+const sc2Left  = document.getElementById('sc2Left');
+const sc2Cards = document.getElementById('sc2Cards');
+const sc2Dots  = document.getElementById('sc2Dots');
+
+FEATURED.forEach((p, i) => {
+  // Left text panel
+  const div = document.createElement('div');
+  div.className = 'sc2-slide-text' + (i === 0 ? ' on' : '');
+  div.id = 'sc2t' + i;
+  const old = p.old ? `<s>₹${p.old.toLocaleString('en-IN')}</s>` : '';
+  div.innerHTML = `
+    <div class="sc2-num">${String(i+1).padStart(2,'0')}</div>
+    <div class="sc2-lbl">${p.cat}</div>
+    <h2 class="sc2-sh">${p.nm}</h2>
+    <p class="sc2-sp">${p.desc}</p>
+    <div class="sc2-sprice">₹${p.price.toLocaleString('en-IN')} ${old}</div>
+    <button class="sc2-sadd" data-nm="${p.nm}" data-pr="${p.price}">+ Add to Cart</button>`;
+  sc2Left.appendChild(div);
+
+  // Right card
+  const bdg = p.badge ? `<div class="sc2-card-bdg${p.nw ? ' nw' : ''}">${p.badge}</div>` : '';
+  const rat = [4.4,4.5,4.6,4.7,4.8,4.9][p.id % 6];
+  const card = document.createElement('div');
+  card.className = 'sc2-card' + (i === 0 ? ' active' : '');
+  card.id = 'sc2c' + i;
+  card.innerHTML = `
+    ${bdg}
+    <div class="sc2-card-img" style="background:${BG[p.cat]}">
+      <img src="${p.img}" alt="${p.nm}" class="sc2-card-img-in" style="width:100%;height:100%;object-fit:cover;display:block;">
+    </div>
+    <div class="sc2-card-info">
+      <div class="sc2-card-cat">${p.cat}</div>
+      <div class="sc2-card-nm">${p.nm}</div>
+      <div class="sc2-card-bot">
+        <div><span class="sc2-card-prc">₹${p.price.toLocaleString('en-IN')}</span>${p.old ? `<span class="sc2-card-old">₹${p.old.toLocaleString('en-IN')}</span>` : ''}</div>
+        <div class="sc2-card-rat"><span>★</span> ${rat}</div>
+      </div>
+    </div>`;
+  sc2Cards.appendChild(card);
+
+  // Dot
+  const dot = document.createElement('div');
+  dot.className = 'sc2-dot' + (i === 0 ? ' on' : '');
+  sc2Dots.appendChild(dot);
+});
+
+// Wire add buttons in sc2
+sc2Left.querySelectorAll('.sc2-sadd').forEach(b => {
+  b.addEventListener('click', () => addToCart(b.dataset.nm, +b.dataset.pr, '🛍️'));
+});
+
+/* sc4nav removed — replaced by hiwDotsNav (built in initHIW) */
+
+/* ══════════════════════════════════════════════
+   SCROLL ANIMATIONS (GSAP ScrollTrigger)
+══════════════════════════════════════════════ */
+let curActiveCard = 0;
+let curStory = 0;
+
+function getScrollPct(el) {
+  const r   = el.getBoundingClientRect();
+  const tot = el.offsetHeight - window.innerHeight;
+  return Math.max(0, Math.min(1, -r.top / tot));
+}
+const ease01 = t => t < .5 ? 2*t*t : 1 - Math.pow(-2*t+2,2)/2;
+
+function initScrollAnimations() {
+
+  /* ── SCENE 1: Hero scroll-driven drift ── */
+  ScrollTrigger.create({
+    trigger: '#sc1wrap',
+    start: 'top top',
+    end: 'bottom bottom',
+    onUpdate: self => {
+      const p = self.progress;
+      gsap.set('#heroBgK', {
+        rotate: -2 + p * 5,
+        scale: 1 + p * .18,
+        opacity: 1 - p * .8
+      });
+      // Hero content subtle depth
+      gsap.set('.hero-content', { y: p * 60 });
+      gsap.set('.hero-glow', { scale: 1 + p * .3, opacity: 1 - p * .5 });
+    }
+  });
+
+  /* ── SCENE 2: Horizontal card slide ── */
+  ScrollTrigger.create({
+    trigger: '#sc2sec',
+    start: 'top top',
+    end: 'bottom bottom',
+    onUpdate: self => {
+      const track = document.getElementById('sc2Cards');
+      if (!track) return;
+      const maxX = track.scrollWidth - track.parentElement.clientWidth;
+      const tx = -(maxX * self.progress * .97);
+      gsap.set(track, { x: tx });
+
+      const idx = Math.min(FEATURED.length - 1, Math.floor(self.progress * FEATURED.length));
+      if (idx !== curActiveCard) {
+        curActiveCard = idx;
+        FEATURED.forEach((_, i) => {
+          const t = document.getElementById('sc2t' + i);
+          const c = document.getElementById('sc2c' + i);
+          const d = sc2Dots.children[i];
+          if (t) t.classList.toggle('on', i === idx);
+          if (c) c.classList.toggle('active', i === idx);
+          if (d) d.classList.toggle('on', i === idx);
+        });
+      }
+    }
+  });
+
+  /* ── SCENE 3: Stats parallax + entrance ── */
+  ScrollTrigger.create({
+    trigger: '#statsec',
+    start: 'top top',
+    end: 'bottom bottom',
+    onEnter: () => {
+      document.getElementById('sc3label').style.opacity = '1';
+      ['ss1','ss2','ss3'].forEach(id => document.getElementById(id)?.classList.add('on'));
+    },
+    onUpdate: self => {
+      const p = self.progress;
+      const ep = ease01(p);
+      gsap.set('#sn1', { x: (p - .5) * -80 });
+      gsap.set('#sn2', { x: (p - .5) *  40 });
+      gsap.set('#sn3', { x: (p - .5) * -60 });
+    }
+  });
+
+  /* ── HOW IT WORKS: Cinematic scroll-driven engine ── */
+  (function initHIW() {
+    const TOTAL = 4;
+    let cur = 0;
+
+    /* Build side dots */
+    const nav = document.getElementById('hiwDotsNav');
+    if (nav) {
+      for (let i = 0; i < TOTAL; i++) {
+        const d = document.createElement('div');
+        d.className = 'hiw-dot-nav' + (i===0?' on':'');
+        nav.appendChild(d);
+      }
+    }
+
+    function goSlide(idx) {
+      if (idx === cur) return;
+      /* Deactivate old */
+      document.getElementById('hiwP'  + cur)?.classList.remove('on');
+      document.getElementById('hiwV'  + cur)?.classList.remove('on');
+      document.getElementById('hiwBg' + cur)?.classList.remove('on');
+      if (nav?.children[cur]) nav.children[cur].classList.remove('on');
+
+      cur = idx;
+
+      /* Activate new */
+      document.getElementById('hiwP'  + cur)?.classList.add('on');
+      document.getElementById('hiwV'  + cur)?.classList.add('on');
+      document.getElementById('hiwBg' + cur)?.classList.add('on');
+      if (nav?.children[cur]) nav.children[cur].classList.add('on');
+
+      /* Counter */
+      const ctr = document.getElementById('hiwCounter');
+      if (ctr) ctr.textContent = String(cur+1).padStart(2,'0') + ' / ' + String(TOTAL).padStart(2,'0');
+    }
+
+    ScrollTrigger.create({
+      trigger: '#hiwWrap',
+      start: 'top top',
+      end: 'bottom bottom',
+      scrub: 1.2,
+      onUpdate: self => {
+        const p = self.progress;
+
+        /* Strip fill */
+        const fill = document.getElementById('hiwFill');
+        if (fill) fill.style.transform = 'scaleX(' + p + ')';
+
+        /* Slide index */
+        const rawIdx = p * TOTAL;
+        const idx    = Math.min(TOTAL - 1, Math.floor(rawIdx));
+        const localP = rawIdx - idx;  // 0→1 within current slide
+
+        goSlide(idx);
+
+        /* ── 3D parallax on active visual ── */
+        const obj = document.getElementById('hiw3d' + idx);
+        if (obj) {
+          const ry = (localP - 0.5) * 28;
+          const rx = (localP - 0.5) * -14;
+          const ty = (localP - 0.5) * -24;
+          gsap.set(obj, {
+            rotateY: ry, rotateX: rx, y: ty, force3D: true
+          });
+        }
+
+        /* ── Left panel subtle vertical parallax ── */
+        const panel = document.getElementById('hiwP' + idx);
+        if (panel) {
+          gsap.set(panel, { y: (localP - 0.5) * 28 });
+        }
+      }
+    });
+  })();
+
+  /* ── SCENE 5: Deal zoom ── */
+  ScrollTrigger.create({
+    trigger: '#dealsec',
+    start: 'top top',
+    end: 'bottom bottom',
+    onUpdate: self => {
+      document.getElementById('dealBox')?.classList.toggle('on', self.progress > .08);
+    }
+  });
+
+  /* ── INTERSECTION: Reviews, How-it-works, Newsletter ── */
+  const ioOpts = { threshold: .14 };
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('on'); });
+  }, ioOpts);
+
+  ['rc0','rc1','rc2','newsInner','dealBox'].forEach(id => {
+    const el = document.getElementById(id); if (el) io.observe(el);
+  });
+
+  // Staggered delays for review cards
+  ['rc0','rc1','rc2'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (el) el.style.transitionDelay = (i * .12) + 's';
+  });
+  /* hb stagger removed — HIW now scroll-driven */
+}
+
+/* ══════════════════════════════════════════════
+   SCROLL ENGINE (legacy scene support + p2)
+══════════════════════════════════════════════ */
+window.addEventListener('scroll', () => {
+  // Page 2 scroll reveal
+  if (document.getElementById('page2').classList.contains('active')) {
+    document.querySelectorAll('.pg-card:not(.on),.p2-section-title:not(.on),.p2-sec-sub:not(.on)').forEach(el => {
+      if (el.getBoundingClientRect().top < window.innerHeight * .92) el.classList.add('on');
+    });
+  }
+}, { passive: true });
+
+/* ══════════════════════════════════════════════
+   PAGE SWITCHING
+══════════════════════════════════════════════ */
+const page1  = document.getElementById('page1');
+const page2  = document.getElementById('page2');
+const btn1   = document.getElementById('btnPage1');
+const btn2   = document.getElementById('btnPage2');
+
+function showPage(n) {
+  if (n === 1) {
+    page1.classList.add('active'); page2.classList.remove('active');
+    btn1.classList.add('on'); btn2.classList.remove('on');
+    window.scrollTo(0, 0);
+    ScrollTrigger.refresh();
+  } else {
+    page2.classList.add('active'); page1.classList.remove('active');
+    btn2.classList.add('on'); btn1.classList.remove('on');
+    window.scrollTo(0, 0);
+    renderP2();
+  }
+}
+btn1.addEventListener('click', () => showPage(1));
+btn2.addEventListener('click', () => showPage(2));
+document.getElementById('homeLink').addEventListener('click', e => { e.preventDefault(); showPage(1); });
+
+window.scrollToSection = function(id) {
+  showPage(1);
+  setTimeout(() => { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 100);
+};
+
+/* ══════════════════════════════════════════════
+   PAGE 2: PRODUCT GRID
+══════════════════════════════════════════════ */
+const CATS = ['all','tech','fashion','home','fitness','beauty'];
+let p2filter = 'all';
+
+function renderP2() {
+  const pf = document.getElementById('p2Filters');
+  if (!pf.children.length) {
+    CATS.forEach(c => {
+      const b = document.createElement('button');
+      b.className = 'flt-btn' + (c === 'all' ? ' on' : '');
+      b.textContent = c === 'all' ? 'All Items' : c[0].toUpperCase() + c.slice(1);
+      b.addEventListener('click', () => {
+        document.querySelectorAll('.flt-btn').forEach(x => x.classList.remove('on'));
+        b.classList.add('on'); p2filter = c; fillGrids();
+      });
+      pf.appendChild(b);
+    });
+  }
+  fillGrids();
+  setTimeout(() => {
+    document.querySelectorAll('.pg-card,.p2-section-title,.p2-sec-sub').forEach(el => {
+      if (el.getBoundingClientRect().top < window.innerHeight * .95) el.classList.add('on');
+    });
+  }, 100);
+}
+
+function fillGrids() {
+  const grids = [
+    { id: 'p2GridTech',      cats: ['tech'] },
+    { id: 'p2GridFashion',   cats: ['fashion'] },
+    { id: 'p2GridHome',      cats: ['home'] },
+    { id: 'p2GridFitBeauty', cats: ['fitness','beauty'] },
+  ];
+  grids.forEach(g => {
+    const el = document.getElementById(g.id); if (!el) return;
+    let list = PRODS.filter(p => g.cats.includes(p.cat));
+    if (p2filter !== 'all') list = list.filter(p => p.cat === p2filter);
+    if (!list.length) { el.innerHTML = '<p style="color:var(--muted);font-size:.8rem;padding:20px 0;grid-column:1/-1">No items in this category for current filter.</p>'; return; }
+    el.innerHTML = list.map(p => {
+      const bdg = p.badge ? `<div class="pg-bdg${p.nw ? ' nw' : ''}">${p.badge}</div>` : '';
+      const rat = [4.4,4.5,4.6,4.7,4.8,4.9][p.id % 6];
+      return `<div class="pg-card">
+        ${bdg}
+        <div class="pg-img" style="background:${BG[p.cat]}">
+          <img src="${p.img}" alt="${p.nm}" class="pg-img-in" style="width:100%;height:100%;object-fit:cover;display:block;font-size:0;">
+          <div class="pg-hover"><button class="pg-hover-btn" data-nm="${p.nm}" data-pr="${p.price}">+ ADD TO CART</button></div>
+        </div>
+        <div class="pg-info">
+          <div class="pg-cat">${p.cat}</div>
+          <div class="pg-nm">${p.nm}</div>
+          <p style="font-size:.72rem;color:var(--muted);font-weight:200;margin-bottom:10px;line-height:1.55">${p.desc}</p>
+          <div class="pg-bot">
+            <div><span class="pg-prc">₹${p.price.toLocaleString('en-IN')}</span>${p.old ? `<span class="pg-old">₹${p.old.toLocaleString('en-IN')}</span>` : ''}</div>
+            <div class="pg-rat"><span>★</span> ${rat} (${50 + p.id * 37})</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    el.querySelectorAll('.pg-hover-btn').forEach(b => {
+      b.addEventListener('click', () => addToCart(b.dataset.nm, +b.dataset.pr, '🛍️'));
+    });
+  });
+  // Re-trigger reveal
+  setTimeout(() => document.querySelectorAll('.pg-card,.p2-section-title,.p2-sec-sub').forEach(el => el.classList.remove('on')), 10);
+  setTimeout(() => {
+    document.querySelectorAll('.pg-card,.p2-section-title,.p2-sec-sub').forEach((el, i) => {
+      setTimeout(() => { if (el.getBoundingClientRect().top < window.innerHeight * .98) el.classList.add('on'); }, i * 35);
+    });
+  }, 60);
+}
+
+/* ══════════════════════════════════════════════
+   CART SYSTEM
+══════════════════════════════════════════════ */
+let cart = [];
+
+function addToCart(nm, price, emoji) {
+  const ex = cart.find(i => i.nm === nm);
+  ex ? ex.qty++ : cart.push({ nm, price, emoji, qty: 1 });
+  updateCart();
+  showToast(emoji + ' ADDED TO CART');
+  // Micro-animate cart button
+  gsap.fromTo('#navCart', { scale: 1.15 }, { scale: 1, duration: .4, ease: 'elastic.out(1,.6)' });
+}
+function rmCart(nm)  { cart = cart.filter(i => i.nm !== nm); updateCart(); }
+function chQty(nm,d) { const it = cart.find(i => i.nm === nm); if (!it) return; it.qty += d; if (it.qty < 1) cart = cart.filter(i => i.nm !== nm); updateCart(); }
+
+function updateCart() {
+  const sub = cart.reduce((s,i) => s + i.price * i.qty, 0);
+  const del = sub >= 499 ? 0 : 49;
+  const tot = sub + del;
+  document.getElementById('cbadge').textContent = cart.reduce((s,i) => s + i.qty, 0);
+  const lst = document.getElementById('cartList');
+  const ftr = document.getElementById('cartFtr');
+  if (!cart.length) {
+    lst.innerHTML = '<div class="c-empty"><span class="ei">🛒</span><p>Cart is empty.<br>Add something bold.</p></div>';
+    ftr.style.display = 'none'; return;
+  }
+  lst.innerHTML = cart.map(i => `
+    <div class="c-item">
+      <div class="c-th">${i.emoji}</div>
+      <div class="c-info">
+        <div class="c-nm">${i.nm}</div>
+        <div class="c-pr">₹${(i.price * i.qty).toLocaleString('en-IN')}</div>
+        <div class="c-qty">
+          <button class="qb" data-n="${i.nm}" data-d="-1">−</button>
+          <span class="qn">${i.qty}</span>
+          <button class="qb" data-n="${i.nm}" data-d="1">+</button>
+        </div>
+      </div>
+      <button class="crm" data-n="${i.nm}">✕</button>
+    </div>`).join('');
+  lst.querySelectorAll('.qb').forEach(b => b.addEventListener('click', () => chQty(b.dataset.n, +b.dataset.d)));
+  lst.querySelectorAll('.crm').forEach(b => b.addEventListener('click', () => rmCart(b.dataset.n)));
+  document.getElementById('cSub').textContent = '₹' + sub.toLocaleString('en-IN');
+  document.getElementById('cDel').textContent = del ? '₹' + del : 'Free 🎉';
+  document.getElementById('cTot').textContent = '₹' + tot.toLocaleString('en-IN');
+  ftr.style.display = 'block';
+}
+
+function openCart() {
+  document.getElementById('cartOv').classList.add('open');
+  document.getElementById('cartDrw').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeCart() {
+  document.getElementById('cartOv').classList.remove('open');
+  document.getElementById('cartDrw').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+/* ══════════════════════════════════════════════
+   CHECKOUT
+══════════════════════════════════════════════ */
+let coStep = 1;
+
+function openCo() {
+  closeCart();
+  document.getElementById('modalOv').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  coStep = 1; renderStep();
+}
+function closeCo() {
+  document.getElementById('modalOv').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function renderStep() {
+  const T = document.getElementById('coTtl');
+  const S = document.getElementById('coSt');
+  const B = document.getElementById('coBd');
+  const F = document.getElementById('coFt');
+  const P = document.getElementById('coPg');
+
+  // Progress indicators
+  const steps = [
+    { n:'01', l:'Address' },
+    { n:'02', l:'Payment' },
+    { n:'03', l:'Review' },
+  ];
+  P.innerHTML = steps.map((s,i) => {
+    const done   = i + 1 < coStep;
+    const active = i + 1 === coStep;
+    return `<div class="co-s ${done?'done':''} ${active?'active':''}">
+      <div class="co-d">${done ? '✓' : s.n}</div>
+      <div class="co-sl">${s.l}</div>
+    </div>`;
+  }).join('');
+
+  if (coStep === 1) {
+    T.textContent = 'DELIVERY ADDRESS';
+    S.textContent = 'Where should we send it?';
+    B.innerHTML = `
+      <div class="frow"><div class="fld"><label>First Name</label><input placeholder="Rahul"></div><div class="fld"><label>Last Name</label><input placeholder="Sharma"></div></div>
+      <div class="frow s"><div class="fld"><label>Phone</label><input placeholder="+91 98765 43210"></div></div>
+      <div class="frow s"><div class="fld"><label>Address Line 1</label><input placeholder="Plot 12, MG Road"></div></div>
+      <div class="frow s"><div class="fld"><label>Address Line 2</label><input placeholder="Near City Mall (optional)"></div></div>
+      <div class="frow"><div class="fld"><label>City</label><input placeholder="Delhi"></div><div class="fld"><label>State</label><select><option>Uttar Pradesh</option><option>Delhi</option><option>Maharashtra</option><option>Karnataka</option></select></div></div>
+      <div class="frow"><div class="fld"><label>PIN Code</label><input placeholder="110001"></div><div class="fld"><label>Country</label><input value="India" readonly></div></div>`;
+    F.innerHTML = `<button class="co-nx" id="coN1">CONTINUE →</button>`;
+    document.getElementById('coN1').addEventListener('click', () => { coStep = 2; renderStep(); });
+
+  } else if (coStep === 2) {
+    T.textContent = 'PAYMENT';
+    S.textContent = 'Secure and encrypted';
+    B.innerHTML = `
+      <div class="pay-g">
+        <div class="pay-o sel" id="po-upi"><div class="pay-ic">📱</div><div><div class="pay-lb">UPI</div><div class="pay-sb">GPay, PhonePe</div></div></div>
+        <div class="pay-o" id="po-card"><div class="pay-ic">💳</div><div><div class="pay-lb">Card</div><div class="pay-sb">Debit / Credit</div></div></div>
+        <div class="pay-o" id="po-nb"><div class="pay-ic">🏦</div><div><div class="pay-lb">Net Banking</div><div class="pay-sb">All major banks</div></div></div>
+        <div class="pay-o" id="po-cod"><div class="pay-ic">💵</div><div><div class="pay-lb">COD</div><div class="pay-sb">Pay on delivery</div></div></div>
+      </div>
+      <div class="cx show" id="cxCard">
+        <div class="frow s"><div class="fld"><label>Card Number</label><input placeholder="1234 5678 9012 3456"></div></div>
+        <div class="frow"><div class="fld"><label>Expiry</label><input placeholder="MM/YY"></div><div class="fld"><label>CVV</label><input placeholder="•••" type="password"></div></div>
+        <div class="frow s"><div class="fld"><label>Name on Card</label><input placeholder="RAHUL SHARMA"></div></div>
+      </div>
+      <div id="cxUpi" style="margin-top:12px"><div class="frow s"><div class="fld"><label>UPI ID</label><input placeholder="rahul@upi"></div></div></div>
+      <div class="sec-n">🔒 Encrypted. We never store card details.</div>`;
+    ['upi','card','nb','cod'].forEach(t => {
+      const el = document.getElementById('po-' + t);
+      if (el) el.addEventListener('click', () => {
+        document.querySelectorAll('.pay-o').forEach(p => p.classList.remove('sel'));
+        el.classList.add('sel');
+        const ce = document.getElementById('cxCard');
+        const ue = document.getElementById('cxUpi');
+        if (ce) ce.className = 'cx' + (t === 'card' ? ' show' : '');
+        if (ue) ue.style.display = t === 'upi' ? 'block' : 'none';
+      });
+    });
+    F.innerHTML = `<button class="co-bk" id="coB2">← BACK</button><button class="co-nx" id="coN2">REVIEW →</button>`;
+    document.getElementById('coB2').addEventListener('click', () => { coStep = 1; renderStep(); });
+    document.getElementById('coN2').addEventListener('click', () => { coStep = 3; renderStep(); });
+
+  } else if (coStep === 3) {
+    T.textContent = 'REVIEW ORDER';
+    S.textContent = 'Confirm before we place it';
+    const sub = cart.reduce((s,i) => s + i.price * i.qty, 0);
+    const del = sub >= 499 ? 0 : 49;
+    const tot = sub + del;
+    B.innerHTML = `
+      <div class="osm">
+        ${cart.map(i => `<div class="osm-i"><div class="osm-e">${i.emoji}</div><div style="flex:1;font-size:.84rem;font-weight:700">${i.nm} <span style="color:var(--muted);font-weight:200">×${i.qty}</span></div><div style="font-family:'Bebas Neue',sans-serif;font-size:.98rem;color:var(--red)">₹${(i.price*i.qty).toLocaleString('en-IN')}</div></div>`).join('')}
+        <div class="osm-r"><span>Subtotal</span><span>₹${sub.toLocaleString('en-IN')}</span></div>
+        <div class="osm-r"><span>Delivery</span><span>${del ? '₹'+del : 'Free 🎉'}</span></div>
+        <div class="osm-t"><span>TOTAL</span><span style="color:var(--red)">₹${tot.toLocaleString('en-IN')}</span></div>
+      </div>
+      <div style="background:rgba(255,255,255,.04);border:1px solid var(--border);padding:14px;border-radius:2px;font-size:.76rem;line-height:1.8;color:var(--muted);margin-bottom:14px">
+        📦 <strong style="color:var(--white)">Est. Delivery:</strong> 2–5 business days<br>
+        ✅ <strong style="color:var(--white)">Free Returns</strong> within 30 days
+      </div>`;
+    F.innerHTML = `<button class="co-bk" id="coB3">← BACK</button><button class="co-nx" id="coPlace">PLACE ORDER →</button>`;
+    document.getElementById('coB3').addEventListener('click', () => { coStep = 2; renderStep(); });
+    document.getElementById('coPlace').addEventListener('click', placeOrder);
+  }
+}
+
+async function placeOrder() {
+  const oid = 'KR' + Math.floor(1e5 + Math.random() * 9e5);
+  const fb = window._fb;
+  if (fb && fb.auth.currentUser) {
+    try {
+      await fb.addDoc(fb.collection(fb.db, 'orders'), {
+        orderId:  oid,
+        userId:   fb.auth.currentUser.uid,
+        items:    cart.map(i => ({ nm: i.nm, price: i.price, qty: i.qty, emoji: i.emoji })),
+        total:    cart.reduce((s,i) => s + i.price * i.qty, 0),
+        placedAt: fb.serverTimestamp()
+      });
+    } catch(_) {}
+  }
+  document.getElementById('coPg').innerHTML = '';
+  document.getElementById('coTtl').textContent = '';
+  document.getElementById('coSt').textContent = '';
+  document.getElementById('coBd').innerHTML = `
+    <div class="co-ok">
+      <span class="ok-ani">🎉</span>
+      <h3>ORDER CONFIRMED</h3>
+      <p>Placed successfully. We'll send a confirmation to your email shortly.</p>
+      <div class="oid">ORDER ID: ${oid}</div>
+      <p style="font-size:.72rem;color:var(--muted)">Estimated delivery: 2–5 business days</p>
+    </div>`;
+  document.getElementById('coFt').innerHTML = `<button class="co-nx" id="coFin">CONTINUE SHOPPING →</button>`;
+  document.getElementById('coFin').addEventListener('click', () => { closeCo(); showToast('✅ THANKS FOR SHOPPING WITH KRATE!'); });
+  cart = []; updateCart();
+}
+
+/* ══════════════════════════════════════════════
+   TOAST
+══════════════════════════════════════════════ */
+function showToast(m) {
+  const t = document.getElementById('toast');
+  t.textContent = m; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+/* ══════════════════════════════════════════════
+   FIREBASE HELPER FUNCTIONS
+══════════════════════════════════════════════ */
+window._fbLogin = async function() {
+  const fb = window._fb;
+  if (!fb) { showToast('⚠️ FIREBASE NOT READY'); return; }
+  const btn = document.getElementById('navAuthBtn');
+  if (btn?.classList.contains('fb-loggedin')) {
+    try {
+      await fb.signOut(fb.auth);
+      showToast('👋 SIGNED OUT');
+    } catch(e) { showToast('⚠️ SIGN OUT ERROR'); }
+    return;
+  }
+  try {
+    const res  = await fb.signInWithPopup(fb.auth, fb.provider);
+    const user = res.user;
+    await fb.setDoc(fb.doc(fb.db, 'users', user.uid), {
+      name:       user.displayName,
+      email:      user.email,
+      photo:      user.photoURL,
+      lastLogin:  fb.serverTimestamp()
+    }, { merge: true });
+    showToast('✅ WELCOME ' + (user.displayName?.split(' ')[0]?.toUpperCase() || 'BACK') + '!');
+  } catch(e) {
+    if (e.code !== 'auth/popup-closed-by-user') showToast('⚠️ LOGIN FAILED');
+  }
+};
+
+/* ══════════════════════════════════════════════
+   WIRE BUTTONS
+══════════════════════════════════════════════ */
+document.getElementById('navCart').addEventListener('click', openCart);
+document.getElementById('cartOv').addEventListener('click', closeCart);
+document.getElementById('cartClose').addEventListener('click', closeCart);
+document.getElementById('checkoutBtn').addEventListener('click', openCo);
+document.getElementById('dealBtn').addEventListener('click', () => showToast('🔥 COUPON KRATE50 APPLIED!'));
+document.getElementById('newsBtn').addEventListener('click', async () => {
+  const v = document.getElementById('newsEmail').value.trim();
+  if (!v || !v.includes('@')) { showToast('⚠️ ENTER A VALID EMAIL'); return; }
+  document.getElementById('newsEmail').value = '';
+  const fb = window._fb;
+  if (fb) {
+    try {
+      await fb.addDoc(fb.collection(fb.db, 'subscribers'), {
+        email: v, subscribedAt: fb.serverTimestamp()
+      });
+    } catch(_) {}
+  }
+  showToast('🎉 YOU\'RE IN THE CREW!');
+});
+document.getElementById('ftIg').addEventListener('click', () => showToast('📸 FOLLOW US ON INSTAGRAM'));
+document.getElementById('ftTw').addEventListener('click', () => showToast('🐦 FOLLOW US ON TWITTER'));
+document.getElementById('ftYt').addEventListener('click', () => showToast('▶️ SUBSCRIBE ON YOUTUBE'));
+
+/* ══════════════════════════════════════════════════════
+   CINEMATIC RING TUNNEL ENGINE
+   ─────────────────────────────────────────────────────
+   SCROLL TIMELINE (progress 0 → 1 over 900vh):
+
+   0.00–0.10  : Outer ring broken segments fly in
+   0.10–0.22  : Outer ring assembles (gap closes, glow)
+   0.22–0.33  : Outer ring ZOOMS into viewer (scale up + fade = feel of going through)
+   0.33–0.44  : Middle ring broken segments fly in
+   0.44–0.55  : Middle ring assembles
+   0.55–0.66  : Middle ring zooms through
+   0.66–0.74  : Inner ring broken segments fly in
+   0.74–0.84  : Inner ring assembles + flash burst
+   0.84–0.92  : Inner ring zooms through
+   0.92–1.00  : Products appear → user navigates with arrows
+══════════════════════════════════════════════════════ */
+(function initRingTunnel() {
+
+  const canvas = document.getElementById('ringCanvas');
+  const ctx    = canvas.getContext('2d');
+  const pin    = document.getElementById('ringPin');
+  const label  = document.getElementById('ringLabel');
+  const rlTxt  = document.getElementById('rlTxt');
+  const scrollInd = document.getElementById('ringScrollInd');
+  const stage  = document.getElementById('ringProductStage');
+
+  let W, H, CX, CY, dpr;
+
+  /* ── Helpers ── */
+  const lerp  = (a,b,t) => a+(b-a)*t;
+  const clamp = (v,mn,mx) => Math.max(mn,Math.min(mx,v));
+  const map   = (v,a,b,c,d) => c + (d-c)*clamp((v-a)/(b-a),0,1);
+  const easeOut3  = t => 1-Math.pow(1-t,3);
+  const easeInOut = t => t<.5?4*t*t*t:(t-1)*(2*t-2)*(2*t-2)+1;
+  const easeBack  = t => { const c=1.70158+1; return t===1?1:1-Math.pow(2,-10*t)*Math.sin((t*10-0.75)*(2*Math.PI)/3)+1; };
+
+  /* ── Resize ── */
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio||1, 2);
+    W = pin.clientWidth; H = pin.clientHeight;
+    canvas.width  = W*dpr; canvas.height = H*dpr;
+    canvas.style.width = W+'px'; canvas.style.height = H+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    CX = W/2; CY = H/2;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  /* ══ RING DEFINITIONS ══
+     Each ring:  baseR = assembled radius
+                 segN  = number of arc segments
+                 gap   = gap fraction between segments
+                 lw    = line width
+                 segs  = computed per-segment data (scatter offset etc.)
+  */
+  const RING_DEFS = [
+    { baseR: 230, segN: 10, gap: .07, lw: 30, color: [190,210,230],  redAccent: .3 },
+    { baseR: 150, segN: 8,  gap: .09, lw: 22, color: [160,185,210],  redAccent: .5 },
+    { baseR:  78, segN: 6,  gap: .11, lw: 15, color: [130,160,195],  redAccent: .8 },
+  ];
+
+  // Phase windows per ring: [flyIn start, assemble start, zoomThrough start, zoomThrough end]
+  const RING_PHASES = [
+    [0.00, 0.12, 0.24, 0.36],
+    [0.34, 0.46, 0.57, 0.68],
+    [0.66, 0.76, 0.86, 0.95],
+  ];
+
+  /* Track current zoom scale per ring so text can scale identically */
+  const zoomScaleRef = [1, 1, 1];
+
+  // Pre-compute segment scatter per ring
+  const rng = (seed) => { let x=Math.sin(seed+1)*10000; return x-Math.floor(x); };
+  RING_DEFS.forEach((rd, ri) => {
+    rd.segs = [];
+    const step = (Math.PI*2) / rd.segN;
+    for (let i=0; i<rd.segN; i++) {
+      const s = ri*100+i*7;
+      rd.segs.push({
+        a0: step*i,
+        a1: step*i + step*(1-rd.gap),
+        /* Scatter: each segment starts displaced */
+        sx: (rng(s)-.5)*320,
+        sy: (rng(s+1)-.5)*220,
+        sr: (rng(s+2)-.5)*2.4,
+        ssc: rng(s+3)*.6+.6,
+      });
+    }
+  });
+
+  /* ══ CANVAS CIRCULAR TEXT ══
+     Draws individual letters around a circle arc — both top and bottom.
+     text    : string to draw
+     radius  : distance from CX,CY to letter baseline
+     rotOff  : rotation offset (radians) — drives scroll-based spin
+     alpha   : opacity 0→1
+     fontSize: px (scales with zoom)
+     color   : CSS color string
+     spacingMul : letter spacing multiplier (1.0 = tight, 0.6 = spread)
+  */
+  function drawCircleText(text, radius, rotOff, alpha, fontSize, color, spacingMul) {
+    if (alpha <= 0.005 || radius < 10) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle   = color;
+    ctx.font        = 'bold ' + fontSize.toFixed(1) + 'px "Bebas Neue", sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign    = 'center';
+
+    const chars    = text.split('');
+    const charArc  = (fontSize * spacingMul) / radius; // arc per char (radians)
+    const totalArc = charArc * chars.length;
+    const start    = rotOff - totalArc / 2;
+
+    chars.forEach((ch, i) => {
+      const ang = start + (i + 0.5) * charArc;
+      ctx.save();
+      ctx.translate(CX, CY);
+      ctx.rotate(ang);
+      ctx.translate(0, -radius);
+      ctx.rotate(Math.PI / 2); // stand each letter upright on the arc
+      ctx.fillText(ch, 0, 0);
+      ctx.restore();
+    });
+
+    ctx.restore();
+  }
+
+    /* ── Draw one ring at given progress state ──
+     flyP  : 0→1  segment entry (scattered → centered)
+     asmP  : 0→1  assembly (scatter dissolves, gap closes, glow builds)
+     zoomP : 0→1  zoom-through (ring scales up massively, opacity drops)
+     alpha : global opacity
+  */
+  function drawRing(rd, flyP, asmP, zoomP, alpha, ri) {
+    if (alpha <= 0) return;
+
+    const [cr, cg, cb] = rd.color;
+    const assembled = asmP;
+    const glowStrength = assembled;
+
+    /* Zoom-through: ring grows huge and fades — feels like passing through */
+    let zoomScale = 1;
+    let zoomAlpha = alpha;
+    if (zoomP > 0) {
+      zoomScale = 1 + easeInOut(zoomP) * 5.5;   // grows 6x
+      zoomAlpha = alpha * (1 - easeInOut(zoomP));
+    }
+    /* Store so ring text can use same scale */
+    if (ri !== undefined) zoomScaleRef[ri] = zoomScale;
+    if (zoomAlpha <= 0.01) return;
+
+    const radius = rd.baseR * zoomScale;
+
+    ctx.save();
+    ctx.globalAlpha = zoomAlpha;
+
+    /* Central white-to-red glow when assembling */
+    if (assembled > .3) {
+      const gR  = radius * 1.6;
+      const grd = ctx.createRadialGradient(CX,CY,0, CX,CY,gR);
+      grd.addColorStop(0, `rgba(255,255,255,${assembled*.15*zoomAlpha})`);
+      grd.addColorStop(.3,`rgba(232,56,28,${assembled*.08*zoomAlpha})`);
+      grd.addColorStop(1,  'transparent');
+      ctx.beginPath();
+      ctx.arc(CX,CY, gR, 0, Math.PI*2);
+      ctx.fillStyle = grd;
+      ctx.fill();
+    }
+
+    /* Draw each segment */
+    rd.segs.forEach((seg, si) => {
+      /* Stagger the fly-in per segment */
+      const segDelay = si / rd.segN * .4;
+      const localFly = clamp((flyP - segDelay)/(1-segDelay*.8), 0, 1);
+
+      /* Scatter that melts away as assembly progresses */
+      const scatFade = 1 - easeOut3(assembled);
+      const dx = seg.sx * (1 - easeOut3(localFly)) * scatFade;
+      const dy = seg.sy * (1 - easeOut3(localFly)) * scatFade;
+      const drot = seg.sr * scatFade;
+      const dsc  = lerp(seg.ssc, 1, easeOut3(assembled));
+
+      const scx = CX + dx;
+      const scy = CY + dy;
+
+      ctx.save();
+      /* Segment-level rotation (scatter dissolves as assembled) */
+      ctx.translate(scx, scy);
+      ctx.rotate(drot);
+      ctx.scale(dsc, dsc);
+      ctx.translate(-scx, -scy);
+
+      /* Shadow/glow */
+      const gl = glowStrength;
+      if (gl > 0.1) {
+        ctx.shadowColor  = `rgba(${cr},${cg},${cb},${gl*.9})`;
+        ctx.shadowBlur   = rd.lw * 2 * gl * zoomScale;
+      }
+
+      /* Main arc */
+      ctx.beginPath();
+      ctx.arc(scx, scy, radius, seg.a0, seg.a1);
+      const segAlpha = clamp(easeOut3(localFly) * (zoomAlpha), 0, 1);
+      ctx.strokeStyle = `rgba(${cr},${cg},${cb},${segAlpha*.85})`;
+      ctx.lineWidth   = rd.lw * zoomScale;
+      ctx.lineCap     = 'round';
+      ctx.stroke();
+
+      /* Inner highlight shine */
+      ctx.shadowBlur = 0;
+      ctx.beginPath();
+      ctx.arc(scx, scy, radius*.97, seg.a0+.04, seg.a1-.04);
+      ctx.strokeStyle = `rgba(255,255,255,${segAlpha*.12})`;
+      ctx.lineWidth   = rd.lw*.25 * zoomScale;
+      ctx.stroke();
+
+      /* Red accent on assembled */
+      if (assembled > .6 && rd.redAccent > 0) {
+        const acc = (assembled-.6)/.4 * rd.redAccent;
+        ctx.beginPath();
+        ctx.arc(scx, scy, radius, seg.a0, seg.a0+(seg.a1-seg.a0)*.25);
+        ctx.strokeStyle = `rgba(232,56,28,${segAlpha*acc})`;
+        ctx.lineWidth   = rd.lw*.5 * zoomScale;
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    });
+
+    ctx.restore();
+  }
+
+  /* ── Ring text drawn on canvas — exact same radius as ring, perfectly centered ── */
+  function renderRingTexts() {
+    const OUTER_R  = 230; // matches RING_DEFS[0].baseR
+    const MIDDLE_R = 150; // matches RING_DEFS[1].baseR
+    const INNER_R  = 78;  // matches RING_DEFS[2].baseR
+
+    const aO = window._rtAlphaOuter  || 0;
+    const aM = window._rtAlphaMiddle || 0;
+    const aI = window._rtAlphaInner  || 0;
+    const rO = (window._rtRotOuter   || 0) * Math.PI / 180;
+    const rM = (window._rtRotMiddle  || 0) * Math.PI / 180;
+    const rI = (window._rtRotInner   || 0) * Math.PI / 180;
+
+    // Outer ring text — two arcs (top + bottom) for left-right effect
+    if (aO > 0.01) {
+      const r = OUTER_R * zoomScaleRef[0];
+      // TOP arc — reads left to right
+      drawCircleText(
+        '✦ OUTER RING ✦ IMMERSE ✦ EXPLORE ✦ DISCOVER THE KRATE ✦',
+        r + 18, -Math.PI / 2 + rO, aO, Math.max(8, 13 * r / OUTER_R),
+        'rgba(232,56,28,0.9)', 0.62
+      );
+      // BOTTOM arc — reads right to left (mirrored, offset by π)
+      drawCircleText(
+        '✦ UNLOCK BOLD ✦ KRATE 2025 ✦ NO NOISE ✦ JUST GREAT STUFF ✦',
+        r + 18, Math.PI / 2 + rO, aO * 0.7, Math.max(7, 11 * r / OUTER_R),
+        'rgba(232,56,28,0.55)', 0.62
+      );
+    }
+
+    // Middle ring text
+    if (aM > 0.01) {
+      const r = MIDDLE_R * zoomScaleRef[1];
+      drawCircleText(
+        '⚡ MIDDLE RING ⚡ TECH · AUDIO · WEARABLES · GADGETS ⚡',
+        r + 14, -Math.PI / 2 + rM, aM, Math.max(7, 11 * r / MIDDLE_R),
+        'rgba(190,210,230,0.92)', 0.60
+      );
+      drawCircleText(
+        '⚡ LIFESTYLE · ESSENTIALS · KRATE PICKS ⚡',
+        r + 14, Math.PI / 2 + rM, aM * 0.65, Math.max(6, 9.5 * r / MIDDLE_R),
+        'rgba(190,210,230,0.5)', 0.60
+      );
+    }
+
+    // Inner ring text
+    if (aI > 0.01) {
+      const r = INNER_R * zoomScaleRef[2];
+      drawCircleText(
+        '❤ INNER RING ❤ KRATE ESSENTIALS ❤ DROP 2025 ❤',
+        r + 12, -Math.PI / 2 + rI, aI, Math.max(5.5, 8.5 * r / INNER_R),
+        'rgba(240,235,224,0.95)', 0.58
+      );
+    }
+  }
+
+  /* ── Flash burst when ring fully assembled ── */
+  function drawBurst(strength) {
+    if (strength <= 0) return;
+    const s = easeOut3(strength);
+    const r = 300 * s;
+    const grd = ctx.createRadialGradient(CX,CY,0, CX,CY,r);
+    grd.addColorStop(0,   `rgba(255,255,255,${s*.7})`);
+    grd.addColorStop(.2,  `rgba(232,56,28,${s*.4})`);
+    grd.addColorStop(1,   'transparent');
+    ctx.save();
+    ctx.globalAlpha = 1-s;  // flash then gone
+    ctx.beginPath();
+    ctx.arc(CX,CY,r,0,Math.PI*2);
+    ctx.fillStyle = grd;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /* ── Render ── */
+  let lastBurst = [-1,-1,-1];
+  let burstTime = [-1,-1,-1];
+
+  function render(p) {
+    ctx.clearRect(0,0,W,H);
+
+    /* Background subtle gradient */
+    const bgGrd = ctx.createRadialGradient(CX,CY,0,CX,CY,Math.max(W,H)*.7);
+    bgGrd.addColorStop(0, 'rgba(12,8,8,.0)');
+    bgGrd.addColorStop(1, 'rgba(4,4,4,.0)');
+    ctx.fillStyle = bgGrd;
+    ctx.fillRect(0,0,W,H);
+
+    RING_DEFS.forEach((rd, ri) => {
+      const [p0, p1, p2, p3] = RING_PHASES[ri];
+
+      const flyP   = map(p, p0, p1, 0, 1);
+      const asmP   = map(p, p1, p2, 0, 1);
+      const zoomP  = map(p, p2, p3, 0, 1);
+
+      /* Alpha: fade in during flyP, hold through assembly, fade out during zoom */
+      let alpha = 1;
+      if (p < p0) alpha = 0;
+      else if (p < p1) alpha = easeOut3(flyP);
+      else if (p >= p2) alpha = 1; // zoomP handles it internally
+
+      /* Burst flash when fully assembled (asmP reaches ~0.9) */
+      const wasAssembled = lastBurst[ri];
+      if (asmP > .88 && wasAssembled < .88 && zoomP < .1) {
+        burstTime[ri] = performance.now();
+      }
+      lastBurst[ri] = asmP;
+
+      const bElapsed = burstTime[ri] > 0 ? (performance.now()-burstTime[ri])/600 : 2;
+      const burstStrength = clamp(1-bElapsed, 0, 1) * (asmP>.85?1:0);
+      if (burstStrength > 0) drawBurst(burstStrength);
+
+      drawRing(rd, flyP, asmP, zoomP, alpha, ri);
+    });
+
+    /* Draw circular text over the rings */
+    renderRingTexts();
+  }
+
+  /* ── RAF loop ── */
+  let currentP = 0;
+  let targetP  = 0;
+  (function loop() {
+    currentP += (targetP - currentP) * .06; // smooth interpolation
+    render(currentP);
+    requestAnimationFrame(loop);
+  })();
+
+  /* ── Products ── */
+  const SHOWCASE = PRODS.slice(0,3); // 3 featured products
+  let prodIdx = 0;
+  let productShown = false;
+
+  // Build product dots
+  const dotsEl = document.getElementById('rpsDots');
+  SHOWCASE.forEach((_,i) => {
+    const d = document.createElement('div');
+    d.className = 'rps-dot' + (i===0?' on':'');
+    d.addEventListener('click', () => goToProduct(i));
+    dotsEl.appendChild(d);
+  });
+
+  function renderProduct(idx, dir) {
+    const p = SHOWCASE[idx];
+    const card = document.getElementById('rpsCard');
+
+    // Swap animation
+    card.classList.remove('swap-in','swap-out');
+    void card.offsetWidth;
+    card.classList.add('swap-out');
+    setTimeout(() => {
+      // Update content
+      const badge = document.getElementById('rpsBadge');
+      badge.textContent = p.badge||'';
+      badge.className = 'rps-badge' + (p.nw?' nw-badge':'');
+
+      document.getElementById('rpsCat').textContent   = p.cat.toUpperCase();
+      document.getElementById('rpsName').textContent  = p.nm;
+      document.getElementById('rpsDesc').textContent  = p.desc;
+      document.getElementById('rpsPrice').textContent = '₹'+p.price.toLocaleString('en-IN');
+      const oldEl = document.getElementById('rpsOld');
+      oldEl.textContent = p.old ? '₹'+p.old.toLocaleString('en-IN') : '';
+
+      // Product image
+      const imgEl = document.getElementById('rpsEmoji');
+      imgEl.innerHTML = `<img src="${p.img}" alt="${p.nm}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:0;">`;
+      imgEl.style.background = BG[p.cat];
+
+      document.getElementById('rpsAdd').onclick = () => addToCart(p.nm, p.price, '🛍️');
+
+      // Update dots & counter
+      document.querySelectorAll('.rps-dot').forEach((d,i) => d.classList.toggle('on',i===idx));
+      document.getElementById('rpsCounter').textContent =
+        String(idx+1).padStart(2,'0')+' / '+String(SHOWCASE.length).padStart(2,'0');
+
+      // Update arrows
+      document.getElementById('rpsPrev').disabled = idx===0;
+      document.getElementById('rpsNext').disabled = idx===SHOWCASE.length-1;
+
+      card.classList.remove('swap-out');
+      card.classList.add('swap-in');
+    }, 200);
+  }
+
+  function goToProduct(i) {
+    prodIdx = clamp(i, 0, SHOWCASE.length-1);
+    renderProduct(prodIdx);
+  }
+
+  document.getElementById('rpsPrev').addEventListener('click', () => goToProduct(prodIdx-1));
+  document.getElementById('rpsNext').addEventListener('click', () => goToProduct(prodIdx+1));
+
+  // Keyboard arrows when products are shown
+  document.addEventListener('keydown', e => {
+    if (!productShown) return;
+    if (e.key==='ArrowRight'||e.key==='ArrowDown') { e.preventDefault(); goToProduct(prodIdx+1); }
+    if (e.key==='ArrowLeft'||e.key==='ArrowUp')    { e.preventDefault(); goToProduct(prodIdx-1); }
+  });
+
+  // Initialize first product
+  renderProduct(0);
+
+  /* ── ScrollTrigger ── */
+  const PRODUCT_PHASE = 0.92;
+  let scrollProgress = 0;
+
+  /* ── RING SIDE TEXT helpers (defined once, outside onUpdate) ── */
+  function setRingSideText(elL, elR, show) {
+    [elL, elR].forEach(el => {
+      if (!el) return;
+      el.style.opacity = show ? '1' : '0';
+      el.style.transform = show
+        ? 'translateY(-50%)'
+        : 'translateY(calc(-50% + 18px))';
+    });
+  }
+  const rstOL = document.getElementById('rstOuterL');
+  const rstOR = document.getElementById('rstOuterR');
+  const rstML = document.getElementById('rstMiddleL');
+  const rstMR = document.getElementById('rstMiddleR');
+  const rstIL = document.getElementById('rstInnerL');
+  const rstIR = document.getElementById('rstInnerR');
+
+  ScrollTrigger.create({
+    trigger: '#ringScene',
+    start: 'top top',
+    end: 'bottom bottom',
+    onUpdate: self => {
+      targetP = self.progress;
+      scrollProgress = self.progress;
+
+      const p = self.progress;
+
+      /* ── Side text visibility per ring phase ── */
+      setRingSideText(rstOL, rstOR, p >= 0.04 && p < 0.20);
+      setRingSideText(rstML, rstMR, p >= 0.35 && p < 0.52);
+      setRingSideText(rstIL, rstIR, p >= 0.62 && p < 0.80);
+
+      /* Label */
+      if (p < .01 || p > .93) {
+        label.classList.remove('show');
+      } else {
+        label.classList.add('show');
+        if      (p < .22) rlTxt.textContent = 'OUTER RING';
+        else if (p < .55) rlTxt.textContent = 'MIDDLE RING';
+        else if (p < .92) rlTxt.textContent = 'INNER RING';
+      }
+
+      /* ── RING CIRCLE TEXT — fade & rotate per ring ── */
+      const rtO = document.getElementById('rtOuter');
+      const rtM = document.getElementById('rtMiddle');
+      const rtI = document.getElementById('rtInner');
+
+      /* Outer: 0.12 → 0.36 | fly in 0.12-0.20, hold 0.20-0.28, out 0.28-0.36 */
+      if (rtO) {
+        let a = 0;
+        if      (p >= 0.12 && p < 0.20) a = (p - 0.12) / 0.08;
+        else if (p >= 0.20 && p < 0.28) a = 1;
+        else if (p >= 0.28 && p < 0.36) a = 1 - (p - 0.28) / 0.08;
+        rtO.style.opacity = Math.max(0, Math.min(1, a)).toFixed(3);
+        const rot = p * 800;
+        rtO.style.transform = 'translate(-50%,-50%) rotate(' + rot + 'deg)';
+      }
+      /* Middle: 0.46 → 0.68 | in 0.46-0.53, hold 0.53-0.61, out 0.61-0.68 */
+      if (rtM) {
+        let a = 0;
+        if      (p >= 0.46 && p < 0.53) a = (p - 0.46) / 0.07;
+        else if (p >= 0.53 && p < 0.61) a = 1;
+        else if (p >= 0.61 && p < 0.68) a = 1 - (p - 0.61) / 0.07;
+        rtM.style.opacity = Math.max(0, Math.min(1, a)).toFixed(3);
+        const rot = -p * 600;   /* counter-clockwise */
+        rtM.style.transform = 'translate(-50%,-50%) rotate(' + rot + 'deg)';
+      }
+      /* Inner: 0.76 → 0.95 | in 0.76-0.83, hold 0.83-0.89, out 0.89-0.95 */
+      if (rtI) {
+        let a = 0;
+        if      (p >= 0.76 && p < 0.83) a = (p - 0.76) / 0.07;
+        else if (p >= 0.83 && p < 0.89) a = 1;
+        else if (p >= 0.89 && p < 0.95) a = 1 - (p - 0.89) / 0.06;
+        rtI.style.opacity = Math.max(0, Math.min(1, a)).toFixed(3);
+        const rot = p * 1100;   /* fastest */
+        rtI.style.transform = 'translate(-50%,-50%) rotate(' + rot + 'deg)';
+      }
+
+      /* Scroll indicator */
+      scrollInd.classList.toggle('hidden', p > .08);
+
+      /* Products stage */
+      if (p >= PRODUCT_PHASE && !productShown) {
+        productShown = true;
+        stage.classList.add('show');
+      }
+      if (p < PRODUCT_PHASE - .02 && productShown) {
+        productShown = false;
+        stage.classList.remove('show');
+      }
+    }
+  });
+
+})();
+
+})();
+</script>
+<!-- ════════ SAI TECH SIDE BADGE ════════ -->
+<div class="saitech-badge" id="saitechBadge">
+  <a href="https://saiyam-creator.github.io/3d-enhenced-portfolio/" target="_blank" rel="noopener" title="Visit Sai Tech Portfolio">
+    <div class="saitech-dot"></div>
+    <span class="saitech-icon">⚡</span>
+    <div class="saitech-text">
+      <span class="saitech-sup">Crafted by</span>
+      <span class="saitech-name">SAI<b>TECH</b></span>
+    </div>
+    <div class="saitech-arrow"></div>
+  </a>
+</div>
+
+</body>
+</html>
