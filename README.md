@@ -10,7 +10,7 @@
 
 <br/>
 
-![KRATE Banner](https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1200&q=80)
+![KRATE Banner]([https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1200&q=80](https://i.ibb.co/3ZN1CVX/image.png))
 
 </div>
 
