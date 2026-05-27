@@ -64,10 +64,8 @@ No build step. No npm install. Just open and run.
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-username/krate.git
+git clone (https://saiyam-creator.github.io/karate-e-com/)
 
-# Open in browser
-open ind.html
 ```
 
 Or just visit the **[Live Demo →](https://saiyam-creator.github.io/3d-enhenced-portfolio/)**
